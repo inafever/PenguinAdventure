@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>펭귄의 북극 모험</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="top">
+        <div>
+          <h1>🐧 펭귄의 북극 모험</h1>
+          <p class="hint">스페이스바 · ↑ · 클릭 · 터치로 점프해요</p>
+          <p id="nick-label" class="nick-label hidden">닉네임 <strong id="nick-name">-</strong></p>
+        </div>
+        <div class="top-actions">
+          <button id="rank-btn" class="rank-btn" type="button">🏆 랭킹</button>
+          <button id="shop-btn" class="shop-btn" type="button">🏪 상점</button>
+          <button id="night-btn" class="theme-btn" type="button">🌙 밤으로 바꾸기</button>
+        </div>
+      </header>
+
+      <div class="stage">
+        <canvas id="game" width="960" height="540" aria-label="펭귄 게임 화면"></canvas>
+
+        <div id="overlay" class="overlay">
+          <div class="card">
+            <p id="overlay-kicker" class="kicker">북극 달리기</p>
+            <h2 id="overlay-title">펭귄을 구해주세요!</h2>
+            <p id="overlay-text">
+              ?상자를 치면 아이템이 나와요.<br />
+              코인: 점수 · 별: 무적 · 버섯: 두 번 점프 · 하트: 보호막<br />
+              상점에는 트레일, 방패, 투명망토도 있어요.
+            </p>
+            <p id="overlay-score" class="hidden"></p>
+            <button id="start-btn" type="button">시작하기</button>
+          </div>
+        </div>
+
+        <div id="nick" class="overlay nick-overlay hidden">
+          <div class="card nick-card">
+            <p class="kicker">첫 플레이</p>
+            <h2>닉네임을 정해요</h2>
+            <p>랭킹에 올라갈 이름을 지어 주세요.<br />한 번 정하면 계속 써요.</p>
+            <label class="nick-field" for="nick-input">내 닉네임</label>
+            <input id="nick-input" type="text" maxlength="10" placeholder="예: 초코펭귄" autocomplete="off" />
+            <p id="nick-msg" class="shop-msg"></p>
+            <button id="nick-save" type="button">이 이름으로 할래요</button>
+          </div>
+        </div>
+
+        <div id="rank" class="overlay rank-overlay hidden">
+          <div class="card rank-card">
+            <p class="kicker">랭킹</p>
+            <h2>누가 제일일까요?</h2>
+            <p id="rank-hello" class="rank-hello"></p>
+            <div class="rank-tabs">
+              <button id="rank-tab-score" class="rank-tab on" type="button">최고 점수</button>
+              <button id="rank-tab-coin" class="rank-tab" type="button">코인</button>
+            </div>
+            <ol id="rank-list" class="rank-list"></ol>
+            <button id="rank-close" type="button">닫기</button>
+          </div>
+        </div>
+
+        <div id="shop" class="overlay shop-overlay hidden">
+          <div class="card shop-card">
+            <p class="kicker">코인 상점</p>
+            <h2>갖고 싶은 걸 골라요</h2>
+            <p class="shop-bank">내 코인 <strong id="shop-coins">0</strong>개</p>
+            <p id="shop-msg" class="shop-msg"></p>
+            <div class="shop-list">
+              <button class="shop-item" type="button" data-item="heart">
+                <span>❤️ 하트 보호막<br /><small>한 번 막아 줘요</small></span>
+                <strong class="price">8코인</strong>
+              </button>
+              <button class="shop-item" type="button" data-item="star">
+                <span>⭐ 별 무적<br /><small>잠깐 안 다쳐요</small></span>
+                <strong class="price">15코인</strong>
+              </button>
+              <button class="shop-item" type="button" data-item="mushroom">
+                <span>🍄 버섯 두 번 점프<br /><small>공중에서 한 번 더!</small></span>
+                <strong class="price">12코인</strong>
+              </button>
+              <button class="shop-item" type="button" data-item="trail">
+                <span>💨 스피드 트레일<br /><small>더 빨리 달려요</small></span>
+                <strong class="price">16코인</strong>
+              </button>
+              <button class="shop-item" type="button" data-item="guard">
+                <span>🛡️ 방패<br /><small>두 번 막아 줘요</small></span>
+                <strong class="price">14코인</strong>
+              </button>
+              <button class="shop-item" type="button" data-item="cloak">
+                <span>👻 투명망토<br /><small>10초 동안 안 다쳐요</small></span>
+                <strong class="price">20코인</strong>
+              </button>
+            </div>
+            <p class="shop-hint">게임 전에 사면 다음 판에 써요.<br />달리는 중에 사면 바로 써요.</p>
+            <button id="shop-close" type="button">닫기</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="hud">
+        <p>단계 <strong id="stage">1</strong></p>
+        <p>점수 <strong id="score">0</strong></p>
+        <p>코인 <strong id="coin">0</strong></p>
+        <p>하트 <strong id="heart">0</strong></p>
+        <p>별 <strong id="star">0</strong></p>
+        <p>버섯 <strong id="mushroom">0</strong></p>
+        <p>최고 <strong id="best">0</strong></p>
+        <p>물고기 <strong id="fish">0</strong></p>
+      </section>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
