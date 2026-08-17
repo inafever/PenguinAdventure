@@ -1340,15 +1340,38 @@ function buyShopItem(kind) {
   renderShop();
 }
 
+const shStage = document.getElementById("sh-stage");
+const shScore = document.getElementById("sh-score");
+const shCoin = document.getElementById("sh-coin");
+const shHeart = document.getElementById("sh-heart");
+const shStar = document.getElementById("sh-star");
+const shMushroom = document.getElementById("sh-mushroom");
+const shFish = document.getElementById("sh-fish");
+const shBest = document.getElementById("sh-best");
+
 function updateHud() {
   const stage = currentStage();
+  const heartsNow = running ? shield : shield + pendingHearts;
+  const bestNow = Math.max(best, score);
   scoreEl.textContent = score;
   fishEl.textContent = fishCount;
   if (coinEl) coinEl.textContent = coinCount;
-  if (heartEl) heartEl.textContent = running ? shield : shield + pendingHearts;
-  bestEl.textContent = Math.max(best, score);
+  if (heartEl) heartEl.textContent = heartsNow;
+  if (starEl) starEl.textContent = starCount;
+  if (mushroomEl) mushroomEl.textContent = mushroomCount;
+  bestEl.textContent = bestNow;
   stageEl.textContent = `${stage.id} · ${stage.name}`;
   if (shopCoinsEl) shopCoinsEl.textContent = coinCount;
+
+  // 플레이 화면 안(가로/전체화면) 미니 현황판
+  if (shStage) shStage.textContent = stage.id;
+  if (shScore) shScore.textContent = score;
+  if (shCoin) shCoin.textContent = coinCount;
+  if (shHeart) shHeart.textContent = heartsNow;
+  if (shStar) shStar.textContent = starCount;
+  if (shMushroom) shMushroom.textContent = mushroomCount;
+  if (shFish) shFish.textContent = fishCount;
+  if (shBest) shBest.textContent = bestNow;
 }
 
 function bangSound() {
