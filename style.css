@@ -490,9 +490,14 @@ body.night .kicker {
 }
 
 /* ---- 세로(회전 안내) 오버레이 ---- */
+/* .stage 안에 있어도 뷰포트 전체를 덮도록 fixed 로 띄운다(짧은 스테이지에 잘리지 않게). */
 .rotate-overlay {
-  z-index: 9;
-  background: rgba(12, 40, 70, 0.55);
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(8, 24, 44, 0.92);
 }
 
 .rotate-emoji {
@@ -512,25 +517,36 @@ body.night .kicker {
   }
 }
 
-/* ---- 전체화면 나가기 버튼 (스테이지 안 떠 있는 버튼) ---- */
-.fs-exit {
+/* ---- 스테이지 위 플로팅 툴바 (가로/전체화면에서만 표시) ---- */
+.stage-tools {
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 10;
+  z-index: 5;
+  display: none;
+  gap: 8px;
+}
+
+.stage-tool {
   width: 44px;
   height: 44px;
   padding: 0;
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   line-height: 1;
   border-radius: 50%;
-  background: rgba(12, 40, 70, 0.55);
+  background: rgba(12, 40, 70, 0.6);
   box-shadow: none;
 }
 
-.fs-exit:active {
+.stage-tool:active {
   transform: none;
   box-shadow: none;
+}
+
+/* 전체화면일 때 툴바 노출 */
+body.fs .stage-tools,
+.stage:fullscreen .stage-tools {
+  display: flex;
 }
 
 /*
@@ -630,5 +646,9 @@ body.fs canvas,
     height: auto;
     max-width: 100%;
     max-height: 100dvh;
+  }
+
+  .stage-tools {
+    display: flex;
   }
 }

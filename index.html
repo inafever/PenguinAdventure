@@ -31,7 +31,12 @@
       <div class="stage">
         <canvas id="game" width="960" height="540" aria-label="펭귄 게임 화면"></canvas>
 
-        <button id="fs-exit" class="fs-exit hidden" type="button" aria-label="전체화면 나가기">✕</button>
+        <div id="stage-tools" class="stage-tools">
+          <button id="t-rank" class="stage-tool" type="button" aria-label="랭킹">🏆</button>
+          <button id="t-shop" class="stage-tool" type="button" aria-label="상점">🏪</button>
+          <button id="t-night" class="stage-tool" type="button" aria-label="밤낮 바꾸기">🌙</button>
+          <button id="t-fs" class="stage-tool" type="button" aria-label="전체화면">⛶</button>
+        </div>
 
         <div id="rotate" class="overlay rotate-overlay hidden">
           <div class="card rotate-card">
