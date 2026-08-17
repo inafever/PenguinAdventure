@@ -170,6 +170,7 @@ button:active {
 .rank-btn,
 .theme-btn,
 .music-btn,
+.nick-btn,
 .fs-btn {
   flex-shrink: 0;
   padding: 10px 18px;
@@ -203,6 +204,38 @@ button:active {
   margin: 4px 0 0;
   font-size: 0.95rem;
   color: #2c5a78;
+}
+
+.nick-edit {
+  margin-left: 6px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  box-shadow: 0 3px 0 #155a90;
+}
+
+.nick-edit:active {
+  box-shadow: 0 1px 0 #155a90;
+}
+
+.nick-btn {
+  background: linear-gradient(180deg, #6ec8e8, #3a90c0);
+  box-shadow: 0 5px 0 #1f6a90;
+}
+
+.nick-btn:active {
+  box-shadow: 0 2px 0 #1f6a90;
+}
+
+.nick-cancel {
+  display: block;
+  margin: 10px auto 0;
+  background: linear-gradient(180deg, #b8c8d8, #8aa0b4);
+  box-shadow: 0 5px 0 #5a7088;
+  color: #1a3040;
+}
+
+.nick-cancel:active {
+  box-shadow: 0 2px 0 #5a7088;
 }
 
 body.night .nick-label {

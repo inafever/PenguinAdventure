@@ -246,6 +246,7 @@ let frame = 0;
 let stageIndex = 0;
 let stageBanner = 0;
 let invincible = 0;
+let hurtFlash = 0;
 let hitAnim = null;
 let coinCount = Number(localStorage.getItem("penguin-coins") || 0);
 let runCoins = 0;
@@ -309,6 +310,7 @@ function resetGame() {
   cloakTime = pendingCloak ? 600 : 0;
   if (cloakTime > 0) invincible = Math.max(invincible, cloakTime);
   pendingCloak = false;
+  hurtFlash = 0;
   trail = [];
   hitAnim = null;
   speed = currentStage().baseSpeed;
@@ -827,6 +829,7 @@ function update() {
   frame += 1;
   if (stageBanner > 0) stageBanner -= 1;
   if (invincible > 0) invincible -= 1;
+  if (hurtFlash > 0) hurtFlash -= 1;
   if (mushroomTime > 0) {
     mushroomTime -= 1;
     if (mushroomTime <= 0 && mushroomCount > 0) {
@@ -948,13 +951,16 @@ function update() {
         if (guardHits > 0) {
           guardHits -= 1;
           invincible = 70;
+          hurtFlash = 70;
           addPopText("방패로 막았어요!", penguin.x - 20, penguin.y - penguin.h - 12);
           beep(440, 0.1);
+          updateHud();
           break;
         }
         if (shield > 0) {
           shield -= 1;
           invincible = 80;
+          hurtFlash = 80;
           updateHud();
           beep(500, 0.1);
           break;
@@ -1082,6 +1088,19 @@ function openNickScreen() {
   if (rankEl) rankEl.classList.add("hidden");
   rankOpen = false;
   if (nickMsgEl) nickMsgEl.textContent = "";
+  const changing = !!nickname;
+  const nickKicker = document.getElementById("nick-kicker");
+  const nickTitle = document.getElementById("nick-title");
+  const nickHelp = document.getElementById("nick-help");
+  const nickClose = document.getElementById("nick-close");
+  if (nickKicker) nickKicker.textContent = changing ? "닉네임 바꾸기" : "첫 플레이";
+  if (nickTitle) nickTitle.textContent = changing ? "이름을 바꿔요" : "닉네임을 정해요";
+  if (nickHelp) {
+    nickHelp.textContent = changing
+      ? "새 이름을 쓰면 이 기기에서 그 이름으로 랭킹에 올라가요."
+      : "랭킹에 올라갈 이름을 지어 주세요.";
+  }
+  if (nickClose) nickClose.classList.toggle("hidden", !changing);
   if (nickInput) {
     nickInput.value = nickname;
     nickInput.focus();
@@ -1542,6 +1561,12 @@ function gameOver(type = "bump", eaterKind = "bear") {
   trailTime = 0;
   cloakTime = 0;
   guardHits = 0;
+  hurtFlash = 0;
+  mushroomTime = 0;
+  canDoubleJump = false;
+  trailTime = 0;
+  cloakTime = 0;
+  guardHits = 0;
   trail = [];
   if (type !== "shot" && type !== "eat") beep(180, 0.2);
   if (score > best) {
@@ -1817,6 +1842,8 @@ function drawPenguin() {
   const eaten = hitAnim && hitAnim.type === "eat";
   const eatP = eaten ? Math.min(1, hitAnim.frame / 55) : 0;
   if (eaten && eatP > 0.92) return;
+  // 하트/방패로 막고 난 직후: 잠깐 깜빡여요.
+  if (hurtFlash > 0 && !shot && !eaten && Math.floor(hurtFlash / 5) % 2 === 0) return;
 
   const waddling = running && penguin.onGround && !shot && !eaten;
   const step = Math.sin(frame / 5.2);
@@ -2164,6 +2191,7 @@ function draw() {
     if (!f.taken) drawFish(f);
   });
   drawTrailFx();
+  drawPowerGlow();
   drawPenguin();
   drawGuardFx();
   if (hitAnim && hitAnim.type === "eat") {
@@ -2193,19 +2221,34 @@ function drawTrailFx() {
   });
 }
 
-function drawGuardFx() {
-  if (guardHits <= 0) return;
+function hasPowerGlow() {
+  return starTime > 0 || shield > 0 || guardHits > 0;
+}
+
+function drawPowerGlow() {
+  if (!hasPowerGlow()) return;
+  if (hurtFlash > 0 && Math.floor(hurtFlash / 5) % 2 === 0) return;
   const cx = penguin.x + penguin.w / 2;
   const cy = penguin.y - penguin.h / 2;
-  const pulse = 1 + Math.sin(frame / 7) * 0.05;
+  const pulse = 1 + Math.sin(frame / 8) * 0.08;
+  const g = ctx.createRadialGradient(cx, cy, 6, cx, cy, 72 * pulse);
+  g.addColorStop(0, "rgba(255, 240, 110, 0.7)");
+  g.addColorStop(0.4, "rgba(255, 200, 40, 0.35)");
+  g.addColorStop(1, "rgba(255, 170, 0, 0)");
   ctx.save();
-  ctx.strokeStyle = "rgba(70, 170, 255, 0.95)";
-  ctx.lineWidth = 5;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, 50 * pulse, 60 * pulse, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.fillStyle = "rgba(120, 200, 255, 0.16)";
+  ctx.ellipse(cx, cy, 54 * pulse, 66 * pulse, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawGuardFx() {
+  if (guardHits <= 0) return;
+  if (hurtFlash > 0 && Math.floor(hurtFlash / 5) % 2 === 0) return;
+  const cx = penguin.x + penguin.w / 2;
+  ctx.save();
   ctx.fillStyle = "#1f6aa8";
   ctx.font = "18px Jua, Malgun Gothic, sans-serif";
   ctx.textAlign = "center";
@@ -2313,11 +2356,6 @@ function drawStageHud() {
   ctx.font = "20px Jua, Malgun Gothic, sans-serif";
   if (running) {
     ctx.fillText(`${stage.id}단계  ${stage.name}`, 24, 36);
-    if (invincible > 0 && cloakTime <= 0 && invincible % 8 < 4) {
-      ctx.globalAlpha = 0.45;
-      drawPenguin();
-      ctx.globalAlpha = 1;
-    }
     let buffY = 62;
     if (cloakTime > 0) {
       ctx.fillText(`👻 망토 ${Math.ceil(cloakTime / 60)}초`, 24, buffY);
@@ -2367,6 +2405,12 @@ window.addEventListener("pointerdown", () => {
   } catch (e) {}
 }, { once: true });
 if (nickSave) nickSave.addEventListener("click", saveNickname);
+const nickBtn = document.getElementById("nick-btn");
+const nickEdit = document.getElementById("nick-edit");
+const nickCloseBtn = document.getElementById("nick-close");
+if (nickBtn) nickBtn.addEventListener("click", openNickScreen);
+if (nickEdit) nickEdit.addEventListener("click", openNickScreen);
+if (nickCloseBtn) nickCloseBtn.addEventListener("click", closeNickScreen);
 if (nickInput) {
   nickInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -2442,6 +2486,7 @@ const tShop = document.getElementById("t-shop");
 const tNight = document.getElementById("t-night");
 const tMusic = document.getElementById("t-music");
 const tFs = document.getElementById("t-fs");
+const tNick = document.getElementById("t-nick");
 
 function fullscreenEl() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -2531,6 +2576,7 @@ if (tRank) tRank.addEventListener("click", () => rankBtn && rankBtn.click());
 if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
 if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
 if (tMusic) tMusic.addEventListener("click", toggleMusic);
+if (tNick) tNick.addEventListener("click", openNickScreen);
 document.addEventListener("fullscreenchange", syncFsUi);
 document.addEventListener("webkitfullscreenchange", syncFsUi);
 
