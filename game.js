@@ -1374,6 +1374,104 @@ function updateHud() {
   if (shBest) shBest.textContent = bestNow;
 }
 
+// ---- 미니 현황판 아이콘: 게임 속 아이템과 동일한 모양으로 그린다 ----
+function drawItemIcon(id, drawFn) {
+  const cv = document.getElementById(id);
+  if (!cv || !cv.getContext) return;
+  const c = cv.getContext("2d");
+  c.clearRect(0, 0, cv.width, cv.height);
+  drawFn(c);
+}
+
+function iconCoin(c) {
+  c.fillStyle = "#f4c430";
+  c.beginPath();
+  c.ellipse(11, 11, 8, 9, 0, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = "#ffe56a";
+  c.beginPath();
+  c.ellipse(10, 10, 5, 6, 0, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = "#c79212";
+  c.font = "bold 11px Jua, Malgun Gothic, sans-serif";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillText("₩", 11, 12);
+}
+
+function iconFish(c) {
+  c.save();
+  c.translate(9, 11);
+  c.fillStyle = "#ff8a3d";
+  c.beginPath();
+  c.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI * 2);
+  c.fill();
+  c.beginPath();
+  c.moveTo(6, 0);
+  c.lineTo(11, -5);
+  c.lineTo(11, 5);
+  c.closePath();
+  c.fill();
+  c.fillStyle = "#fff";
+  c.beginPath();
+  c.arc(-3, -1, 1.5, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = "#222";
+  c.beginPath();
+  c.arc(-2.5, -1, 0.8, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+function iconStar(c) {
+  c.fillStyle = "#ffd24a";
+  c.beginPath();
+  const x = 11;
+  const y = 11;
+  const r = 9;
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+    const b = a + Math.PI / 5;
+    c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    c.lineTo(x + Math.cos(b) * r * 0.45, y + Math.sin(b) * r * 0.45);
+  }
+  c.closePath();
+  c.fill();
+}
+
+function iconMushroom(c) {
+  c.fillStyle = "#e74c3c";
+  c.beginPath();
+  c.arc(11, 11, 8, Math.PI, 0);
+  c.fill();
+  c.fillStyle = "#f7f1e3";
+  c.fillRect(7, 11, 8, 8);
+  c.fillStyle = "#fff";
+  c.beginPath();
+  c.arc(8, 8, 2, 0, Math.PI * 2);
+  c.arc(14, 8, 2, 0, Math.PI * 2);
+  c.fill();
+}
+
+function iconHeart(c) {
+  c.fillStyle = "#ff5b7a";
+  const cx = 11;
+  const cy = 10;
+  c.beginPath();
+  c.moveTo(cx, cy + 8);
+  c.bezierCurveTo(cx + 11, cy - 1, cx + 6, cy - 11, cx, cy - 3);
+  c.bezierCurveTo(cx - 6, cy - 11, cx - 11, cy - 1, cx, cy + 8);
+  c.fill();
+}
+
+function renderHudIcons() {
+  drawItemIcon("ic-coin", iconCoin);
+  drawItemIcon("ic-heart", iconHeart);
+  drawItemIcon("ic-star", iconStar);
+  drawItemIcon("ic-mushroom", iconMushroom);
+  drawItemIcon("ic-fish", iconFish);
+}
+
 function bangSound() {
   beep(150, 0.07);
   setTimeout(() => beep(90, 0.16), 70);
@@ -2459,6 +2557,7 @@ makeSnow();
 makeStars();
 makeHills();
 applyTheme();
+renderHudIcons();
 updateHud();
 updateNickLabel();
 onViewport();
