@@ -24,6 +24,7 @@
 //   create policy "insert scores" on scores for insert with check (true);
 //
 window.PENGUIN_SUPABASE = {
-  url: "",
-  anonKey: "",
+  url: "https://yahktwaabetayemhjech.supabase.co",
+  anonKey:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhaGt0d2FhYmV0YXllbWhqZWNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NDY3ODQsImV4cCI6MjEwMjUyMjc4NH0.0_mRro-jevcl_hL3ChKStURGReB1VzShLXr1U7lrntE",
 };
