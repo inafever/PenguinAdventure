@@ -1454,7 +1454,8 @@ function drawBackground() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (isNight || id === 5) {
+  const starry = isNight || id === 5;
+  if (starry) {
     stars.forEach((s) => {
       const shine = 0.55 + Math.sin(frame / 18 + s.twinkle) * 0.45;
       ctx.fillStyle = `rgba(255,255,255,${shine})`;
@@ -1464,36 +1465,22 @@ function drawBackground() {
     });
   }
 
+  const w = canvas.width;
+  // 해 / 달 (부드러운 글로우, 화면 폭에 맞춘 위치)
   if (!isNight && id === 1) {
-    ctx.fillStyle = "rgba(255, 230, 140, 0.45)";
-    ctx.beginPath();
-    ctx.arc(790, 78, 52, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ffe566";
-    ctx.beginPath();
-    ctx.arc(790, 78, 28, 0, Math.PI * 2);
-    ctx.fill();
+    drawGlowOrb(w * 0.82, 82, 28, "#ffe566", "255,230,140");
   } else if (!isNight && id === 4) {
-    ctx.fillStyle = "rgba(255, 140, 70, 0.5)";
-    ctx.beginPath();
-    ctx.arc(700, 210, 48, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ff9a4a";
-    ctx.beginPath();
-    ctx.arc(700, 210, 26, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (isNight || id === 5) {
-    const moonY = id === 5 ? 58 : 72;
-    ctx.fillStyle = "rgba(255, 248, 210, 0.25)";
-    ctx.beginPath();
-    ctx.arc(820, moonY, 42, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff6c8";
-    ctx.beginPath();
-    ctx.arc(820, moonY, 26, 0, Math.PI * 2);
-    ctx.fill();
+    drawGlowOrb(w * 0.72, 210, 26, "#ff9a4a", "255,140,70");
+  } else if (starry) {
+    drawGlowOrb(w * 0.84, id === 5 ? 58 : 72, 26, "#fff6c8", "255,248,210");
   }
 
+  // 낮 하늘에는 흘러가는 구름
+  if (!starry) drawClouds();
+
+  // 오로라 (화면 폭에 맞춰 가로로 늘림)
+  ctx.save();
+  ctx.scale(w / 960, 1);
   ctx.globalAlpha = t.aurora;
   ctx.fillStyle = t.auroraA;
   ctx.beginPath();
@@ -1511,6 +1498,10 @@ function drawBackground() {
   ctx.bezierCurveTo(480, 60, 330, 120, 200, 70);
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // 먼 산맥 (패럴랙스: 뒤 레이어는 느리게 흐름)
+  drawFarMountains(t);
 
   hills.forEach((h, i) => drawScenery(h, t.hill[i % 2]));
 
@@ -1530,6 +1521,73 @@ function drawBackground() {
   for (let x = -((frame * speed) % gap); x < canvas.width; x += gap) {
     ctx.fillRect(x, GROUND + 10, id === 5 ? 18 : 28, 5);
   }
+}
+
+// 부드러운 글로우가 있는 해/달. glowRGB 는 "r,g,b" 문자열.
+function drawGlowOrb(x, y, r, core, glowRGB) {
+  ctx.fillStyle = `rgba(${glowRGB},0.16)`;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(${glowRGB},0.4)`;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 지평선 위로 반복되는 삼각 산맥 실루엣.
+function drawPeaks(startX, h, spacing) {
+  const w = canvas.width;
+  const baseY = GROUND + 4;
+  ctx.beginPath();
+  ctx.moveTo(startX - spacing, baseY);
+  for (let x = startX - spacing; x < w + spacing; x += spacing) {
+    ctx.lineTo(x + spacing / 2, baseY - h);
+    ctx.lineTo(x + spacing, baseY);
+  }
+  ctx.lineTo(w + spacing, baseY);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 두 겹의 먼 산맥이 서로 다른 속도로 흐른다(패럴랙스).
+function drawFarMountains(t) {
+  const prev = ctx.globalAlpha;
+  const off1 = (frame * speed * 0.12) % 300;
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = t.hill[1];
+  drawPeaks(-off1, 150, 300);
+  const off2 = (frame * speed * 0.26) % 220;
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = t.hill[0];
+  drawPeaks(-off2 - 50, 105, 220);
+  ctx.globalAlpha = prev;
+}
+
+function puff(x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.85, y + 6, r * 0.72, 0, Math.PI * 2);
+  ctx.arc(x - r * 0.85, y + 6, r * 0.72, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 낮 하늘을 천천히 흘러가는 구름 몇 조각.
+function drawClouds() {
+  const w = canvas.width;
+  const span = w + 220;
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  const bases = [0.12, 0.46, 0.78];
+  bases.forEach((fx, i) => {
+    const drift = (frame * speed * (0.14 + i * 0.03)) % span;
+    let cx = fx * w - drift;
+    cx = ((cx % span) + span) % span - 110;
+    puff(cx, 54 + i * 30, 26 + i * 6);
+  });
 }
 
 function drawScenery(h, color) {
