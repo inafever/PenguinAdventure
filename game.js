@@ -252,6 +252,7 @@ let runCoins = 0;
 let shopOpen = false;
 let nickOpen = false;
 let rankOpen = false;
+let rotateOpen = false;
 let rankMode = "score";
 let nickname = (localStorage.getItem("penguin-nick") || "").trim();
 let pendingHearts = 0;
@@ -2064,7 +2065,7 @@ function drawStageHud() {
 }
 
 function loop() {
-  if (running && !shopOpen && !rankOpen && !nickOpen) update();
+  if (running && !shopOpen && !rankOpen && !nickOpen && !rotateOpen) update();
   else updateHitAnim();
   draw();
   requestAnimationFrame(loop);
@@ -2123,6 +2124,94 @@ window.addEventListener("keydown", (e) => {
   }
 });
 canvas.addEventListener("pointerdown", jump);
+
+// ---- 전체화면 & 화면 방향 ----
+const fsBtn = document.getElementById("fs-btn");
+const fsExitBtn = document.getElementById("fs-exit");
+const fsRotateBtn = document.getElementById("fs-rotate");
+const rotateEl = document.getElementById("rotate");
+const stageBox = document.querySelector(".stage");
+
+function fullscreenEl() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function inFullscreen() {
+  return !!fullscreenEl() || document.body.classList.contains("fs");
+}
+
+function requestFs() {
+  const req =
+    stageBox.requestFullscreen ||
+    stageBox.webkitRequestFullscreen ||
+    stageBox.webkitRequestFullScreen;
+  if (req) {
+    try {
+      const p = req.call(stageBox);
+      if (p && p.catch) p.catch(() => document.body.classList.add("fs"));
+    } catch (_) {
+      document.body.classList.add("fs");
+    }
+  } else {
+    // iOS Safari 등 표준 전체화면 미지원 기기: 유사 전체화면으로 대체
+    document.body.classList.add("fs");
+  }
+  syncFsUi();
+}
+
+function exitFs() {
+  const exit =
+    document.exitFullscreen ||
+    document.webkitExitFullscreen ||
+    document.webkitCancelFullScreen;
+  if (fullscreenEl() && exit) {
+    try {
+      exit.call(document);
+    } catch (_) {}
+  }
+  document.body.classList.remove("fs");
+  syncFsUi();
+}
+
+function toggleFs() {
+  if (inFullscreen()) exitFs();
+  else requestFs();
+}
+
+function syncFsUi() {
+  const on = inFullscreen();
+  if (fsExitBtn) fsExitBtn.classList.toggle("hidden", !on);
+  if (fsBtn) fsBtn.textContent = on ? "⛶ 전체화면 끄기" : "⛶ 전체화면";
+}
+
+if (fsBtn) fsBtn.addEventListener("click", toggleFs);
+if (fsExitBtn) fsExitBtn.addEventListener("click", exitFs);
+if (fsRotateBtn) fsRotateBtn.addEventListener("click", requestFs);
+document.addEventListener("fullscreenchange", syncFsUi);
+document.addEventListener("webkitfullscreenchange", syncFsUi);
+
+function isTouchLike() {
+  return (
+    (navigator.maxTouchPoints || 0) > 0 ||
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
+// 좁고 세로인 터치 화면(휴대전화)에서만 회전 안내를 띄운다.
+function isPortraitPhone() {
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  return portrait && window.innerWidth <= 820 && isTouchLike();
+}
+
+function checkOrientation() {
+  const show = isPortraitPhone();
+  rotateOpen = show;
+  if (rotateEl) rotateEl.classList.toggle("hidden", !show);
+}
+
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", checkOrientation);
+checkOrientation();
 
 makeSnow();
 makeStars();

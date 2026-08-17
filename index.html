@@ -2,7 +2,10 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>펭귄의 북극 모험</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,11 +24,24 @@
           <button id="rank-btn" class="rank-btn" type="button">🏆 랭킹</button>
           <button id="shop-btn" class="shop-btn" type="button">🏪 상점</button>
           <button id="night-btn" class="theme-btn" type="button">🌙 밤으로 바꾸기</button>
+          <button id="fs-btn" class="fs-btn" type="button">⛶ 전체화면</button>
         </div>
       </header>
 
       <div class="stage">
         <canvas id="game" width="960" height="540" aria-label="펭귄 게임 화면"></canvas>
+
+        <button id="fs-exit" class="fs-exit hidden" type="button" aria-label="전체화면 나가기">✕</button>
+
+        <div id="rotate" class="overlay rotate-overlay hidden">
+          <div class="card rotate-card">
+            <p class="kicker">화면 안내</p>
+            <div class="rotate-emoji" aria-hidden="true">📱↻</div>
+            <h2>화면을 가로로 돌려 주세요</h2>
+            <p>펭귄 달리기는 <strong>가로 화면</strong>에서 제일 잘 보여요.<br />휴대전화를 옆으로 돌리면 게임이 커져요.</p>
+            <button id="fs-rotate" type="button">⛶ 전체화면으로 하기</button>
+          </div>
+        </div>
 
         <div id="overlay" class="overlay">
           <div class="card">

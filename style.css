@@ -89,6 +89,7 @@ body.night .hint {
   position: relative;
   border-radius: 24px;
   overflow: hidden;
+  touch-action: none;
   box-shadow:
     0 18px 40px rgba(20, 60, 90, 0.25),
     inset 0 0 0 4px rgba(255, 255, 255, 0.45);
@@ -99,6 +100,7 @@ canvas {
   width: 100%;
   height: auto;
   background: #9ad7f5;
+  touch-action: none;
 }
 
 .overlay {
@@ -166,10 +168,20 @@ button:active {
 
 .shop-btn,
 .rank-btn,
-.theme-btn {
+.theme-btn,
+.fs-btn {
   flex-shrink: 0;
   padding: 10px 18px;
   font-size: 1rem;
+}
+
+.fs-btn {
+  background: linear-gradient(180deg, #4fbf8b, #2a9668);
+  box-shadow: 0 5px 0 #1a6a48;
+}
+
+.fs-btn:active {
+  box-shadow: 0 2px 0 #1a6a48;
 }
 
 .nick-label {
@@ -474,5 +486,149 @@ body.night .kicker {
   .hud {
     flex-wrap: wrap;
     gap: 8px;
+  }
+}
+
+/* ---- 세로(회전 안내) 오버레이 ---- */
+.rotate-overlay {
+  z-index: 9;
+  background: rgba(12, 40, 70, 0.55);
+}
+
+.rotate-emoji {
+  font-size: 3.4rem;
+  margin: 0 0 6px;
+  animation: rotate-hint 1.8s ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+  0%,
+  60% {
+    transform: rotate(0deg);
+  }
+  80%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+/* ---- 전체화면 나가기 버튼 (스테이지 안 떠 있는 버튼) ---- */
+.fs-exit {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  border-radius: 50%;
+  background: rgba(12, 40, 70, 0.55);
+  box-shadow: none;
+}
+
+.fs-exit:active {
+  transform: none;
+  box-shadow: none;
+}
+
+/*
+ * 꽉 채움(레터박스) 레이아웃.
+ * body.fs = 유사 전체화면(iOS 등), :fullscreen = 표준 전체화면.
+ * 내부 캔버스 해상도(960x540)는 그대로 두고 시각적으로만 화면에 맞춘다.
+ */
+body.fs {
+  overflow: hidden;
+}
+
+body.fs .wrap {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+body.fs .top,
+body.fs .hud {
+  display: none;
+}
+
+body.fs .stage {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #06182c;
+  box-shadow: none;
+}
+
+.stage:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #06182c;
+  box-shadow: none;
+}
+
+/* 전체화면일 때 캔버스는 비율 유지하며 화면에 레터박스로 꽉 참 */
+body.fs canvas,
+.stage:fullscreen canvas {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100dvh;
+}
+
+/* 세로(회전) 안내 표시는 game.js가 방향을 감지해 .hidden 토글로 제어한다. */
+
+/*
+ * 가로 & 낮은 높이(모바일 가로): 스크롤 없이 화면을 꽉 채운다.
+ * 헤더/HUD를 접고 스테이지를 뷰포트에 맞춰 레터박스로 키운다.
+ */
+@media (orientation: landscape) and (max-height: 600px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .wrap {
+    max-width: none;
+    height: 100dvh;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .top,
+  .hud {
+    display: none;
+  }
+
+  .stage {
+    width: 100dvw;
+    height: 100dvh;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #06182c;
+    box-shadow: none;
+  }
+
+  .stage canvas {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100dvh;
   }
 }
