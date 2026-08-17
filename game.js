@@ -1116,6 +1116,90 @@ function saveNickname() {
   beep(760, 0.08);
 }
 
+// ---- 온라인 랭킹 (Supabase, 설정된 경우에만) ----
+function supabaseCfg() {
+  const c = window.PENGUIN_SUPABASE || {};
+  return c.url && c.anonKey ? c : null;
+}
+
+function submitScoreOnline() {
+  const cfg = supabaseCfg();
+  if (!cfg || !nickname) return;
+  const value = Math.max(best, score);
+  if (value <= 0) return;
+  try {
+    fetch(`${cfg.url}/rest/v1/scores`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ nick: nickname, score: value, coins: coinCount }),
+    }).catch(() => {});
+  } catch (e) {
+    // 네트워크 오류가 나도 게임은 계속돼요.
+  }
+}
+
+function fetchOnlineRanks() {
+  const cfg = supabaseCfg();
+  if (!cfg) return Promise.resolve(null);
+  const col = rankMode === "coin" ? "coins" : "score";
+  const url = `${cfg.url}/rest/v1/scores?select=nick,score,coins&order=${col}.desc&limit=200`;
+  return fetch(url, {
+    headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+  }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+}
+
+function normalizeLocalRanks() {
+  return loadRanks().map((r) => ({
+    nick: r.nick,
+    score: Number(r.best) || 0,
+    coins: Number(r.coins) || 0,
+  }));
+}
+
+// 같은 닉네임은 최고 점수/코인만 남긴다.
+function dedupeByNick(rows) {
+  const map = new Map();
+  rows.forEach((r) => {
+    if (!r || !r.nick) return;
+    const cur = map.get(r.nick);
+    if (!cur) {
+      map.set(r.nick, { nick: r.nick, score: Number(r.score) || 0, coins: Number(r.coins) || 0 });
+    } else {
+      cur.score = Math.max(cur.score, Number(r.score) || 0);
+      cur.coins = Math.max(cur.coins, Number(r.coins) || 0);
+    }
+  });
+  return [...map.values()];
+}
+
+function paintRank(rows, note) {
+  if (!rankList) return;
+  const sorted = rows.slice().sort((a, b) =>
+    rankMode === "coin" ? b.coins - a.coins : b.score - a.score
+  );
+  if (!sorted.length) {
+    rankList.innerHTML = `<li class="rank-empty">${rankMode === "coin" ? "아직 코인 기록이 없어요." : "아직 점수 기록이 없어요."}</li>`;
+    return;
+  }
+  const medals = ["🥇", "🥈", "🥉"];
+  const head = note ? `<li class="rank-empty">${note}</li>` : "";
+  rankList.innerHTML =
+    head +
+    sorted
+      .slice(0, 10)
+      .map((r, i) => {
+        const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
+        const me = r.nick === nickname ? " me" : "";
+        return `<li class="${me.trim()}"><span class="rank-place">${medals[i] || i + 1}</span><span>${r.nick}${r.nick === nickname ? " (나)" : ""}</span><strong>${value}</strong></li>`;
+      })
+      .join("");
+}
+
 function renderRank() {
   if (rankHello) {
     rankHello.textContent = nickname ? `나는 ${nickname}` : "아직 닉네임이 없어요.";
@@ -1123,25 +1207,27 @@ function renderRank() {
   if (rankTabScore) rankTabScore.classList.toggle("on", rankMode === "score");
   if (rankTabCoin) rankTabCoin.classList.toggle("on", rankMode === "coin");
   if (!rankList) return;
-  const ranks = loadRanks().slice();
-  ranks.sort((a, b) =>
-    rankMode === "coin"
-      ? (Number(b.coins) || 0) - (Number(a.coins) || 0)
-      : (Number(b.best) || 0) - (Number(a.best) || 0)
-  );
-  if (!ranks.length) {
-    rankList.innerHTML = `<li class="rank-empty">${rankMode === "coin" ? "아직 코인 기록이 없어요." : "아직 점수 기록이 없어요."}</li>`;
+
+  const cfg = supabaseCfg();
+  if (!cfg) {
+    paintRank(dedupeByNick(normalizeLocalRanks()));
     return;
   }
-  const medals = ["🥇", "🥈", "🥉"];
-  rankList.innerHTML = ranks
-    .slice(0, 10)
-    .map((r, i) => {
-      const value = rankMode === "coin" ? `${Number(r.coins) || 0}코인` : `${Number(r.best) || 0}점`;
-      const me = r.nick === nickname ? " me" : "";
-      return `<li class="${me.trim()}"><span class="rank-place">${medals[i] || i + 1}</span><span>${r.nick}${r.nick === nickname ? " (나)" : ""}</span><strong>${value}</strong></li>`;
+  rankList.innerHTML = `<li class="rank-empty">전 세계 기록 불러오는 중…</li>`;
+  fetchOnlineRanks()
+    .then((rows) => {
+      if (!rankOpen) return;
+      const online = (rows || []).map((r) => ({
+        nick: r.nick,
+        score: Number(r.score) || 0,
+        coins: Number(r.coins) || 0,
+      }));
+      paintRank(dedupeByNick(online.concat(normalizeLocalRanks())));
     })
-    .join("");
+    .catch(() => {
+      if (!rankOpen) return;
+      paintRank(dedupeByNick(normalizeLocalRanks()), "인터넷 기록을 못 불러와 이 기기 기록만 보여요.");
+    });
 }
 
 function openRank() {
@@ -1337,6 +1423,7 @@ function gameOver(type = "bump", eaterKind = "bear") {
     best = score;
     localStorage.setItem("penguin-best", String(best));
   }
+  submitScoreOnline();
   overlayKicker.textContent = "게임 오버";
   overlayTitle.textContent = "잡혔어요!";
   if (type === "shot") {
