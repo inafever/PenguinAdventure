@@ -564,6 +564,41 @@ body.fs .stage-tools,
   display: flex;
 }
 
+/* ---- 스테이지 위 미니 현황판 (가로/전체화면에서만 표시) ---- */
+.stage-hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: 66%;
+  z-index: 4;
+  display: none;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  pointer-events: none;
+}
+
+.sh-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #fff;
+  background: rgba(12, 40, 70, 0.55);
+  white-space: nowrap;
+}
+
+.sh-item b {
+  font-weight: 700;
+}
+
+body.fs .stage-hud,
+.stage:fullscreen .stage-hud {
+  display: flex;
+}
+
 /*
  * 꽉 채움(레터박스) 레이아웃.
  * body.fs = 유사 전체화면(iOS 등), :fullscreen = 표준 전체화면.
@@ -664,6 +699,10 @@ body.fs canvas,
   }
 
   .stage-tools {
+    display: flex;
+  }
+
+  .stage-hud {
     display: flex;
   }
 }
