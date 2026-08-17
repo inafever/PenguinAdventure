@@ -323,6 +323,7 @@ function resetGame() {
   overlay.classList.add("hidden");
   closeShop();
   closeRank();
+  startMusic();
   updateHud();
 }
 
@@ -484,7 +485,7 @@ function jump() {
 let audioCtx = null;
 let musicGain = null;
 let musicNodes = [];
-let musicOn = localStorage.getItem("penguin-music") !== "0";
+let musicOn = true;
 let musicPlaying = false;
 let musicNextTime = 0;
 let musicNote = 0;
@@ -503,7 +504,7 @@ function getMusicGain() {
   const ctx = getAudio();
   if (!musicGain || musicGain.context !== ctx) {
     musicGain = ctx.createGain();
-    musicGain.gain.value = musicOn ? 1 : 0;
+    musicGain.gain.value = 1;
     musicGain.connect(ctx.destination);
   }
   return musicGain;
@@ -535,24 +536,34 @@ function scheduleMusic() {
   if (musicNextTime < now) musicNextTime = now + 0.04;
   while (musicNextTime < now + 0.9) {
     const i = musicNote % MUSIC_MELODY.length;
-    playTone(MUSIC_MELODY[i], musicNextTime, MUSIC_NOTE * 0.88, "triangle", 0.045);
-    playTone(MUSIC_BASS[i], musicNextTime, MUSIC_NOTE * 0.96, "sine", 0.028);
+    playTone(MUSIC_MELODY[i], musicNextTime, MUSIC_NOTE * 0.88, "triangle", 0.14);
+    playTone(MUSIC_BASS[i], musicNextTime, MUSIC_NOTE * 0.96, "sine", 0.08);
     musicNextTime += MUSIC_NOTE;
     musicNote += 1;
   }
   musicLoopId = requestAnimationFrame(scheduleMusic);
 }
 
+function beginMusicLoop() {
+  if (musicPlaying) return;
+  const ctx = getAudio();
+  getMusicGain().gain.cancelScheduledValues(ctx.currentTime);
+  getMusicGain().gain.setValueAtTime(1, ctx.currentTime);
+  musicPlaying = true;
+  musicNextTime = ctx.currentTime + 0.05;
+  musicNote = 0;
+  scheduleMusic();
+}
+
 function startMusic() {
   if (!musicOn || musicPlaying) return;
   try {
     const ctx = getAudio();
-    getMusicGain().gain.cancelScheduledValues(ctx.currentTime);
-    getMusicGain().gain.setValueAtTime(1, ctx.currentTime);
-    musicPlaying = true;
-    musicNextTime = 0;
-    musicNote = 0;
-    scheduleMusic();
+    if (ctx.state === "suspended") {
+      ctx.resume().then(beginMusicLoop).catch(() => {});
+    } else {
+      beginMusicLoop();
+    }
   } catch (e) {
     // 음악이 안 나와도 게임은 계속돼요.
   }
@@ -2064,9 +2075,13 @@ startBtn.addEventListener("click", () => {
     openNickScreen();
     return;
   }
-  startMusic();
   resetGame();
 });
+window.addEventListener("pointerdown", () => {
+  try {
+    getAudio();
+  } catch (e) {}
+}, { once: true });
 if (nickSave) nickSave.addEventListener("click", saveNickname);
 if (nickInput) {
   nickInput.addEventListener("keydown", (e) => {
