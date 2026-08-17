@@ -594,6 +594,12 @@ body.fs .stage-tools,
   font-weight: 700;
 }
 
+.sh-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 body.fs .stage-hud,
 .stage:fullscreen .stage-hud {
   display: flex;
