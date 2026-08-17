@@ -255,7 +255,7 @@ let rankOpen = false;
 let rotateOpen = false;
 let rankMode = "score";
 let nickname = (localStorage.getItem("penguin-nick") || "").trim();
-let pendingHearts = 0;
+let pendingHearts = Number(localStorage.getItem("penguin-hearts") || 0);
 let pendingTrail = false;
 let pendingGuard = 0;
 let pendingCloak = false;
@@ -291,6 +291,7 @@ function resetGame() {
   runCoins = 0;
   shield = pendingHearts;
   pendingHearts = 0;
+  savePendingHearts();
   doubleJumpUsed = false;
   mushroomTime = mushroomCount > 0 ? 600 : 0;
   canDoubleJump = mushroomCount > 0;
@@ -486,7 +487,7 @@ function jump() {
 let audioCtx = null;
 let musicGain = null;
 let musicNodes = [];
-let musicOn = true;
+let musicOn = localStorage.getItem("penguin-music") !== "0";
 let musicPlaying = false;
 let musicNextTime = 0;
 let musicNote = 0;
@@ -1019,6 +1020,10 @@ function saveCoins() {
   saveMyRank();
 }
 
+function savePendingHearts() {
+  localStorage.setItem("penguin-hearts", String(pendingHearts));
+}
+
 function loadRanks() {
   try {
     const data = JSON.parse(localStorage.getItem("penguin-ranks") || "[]");
@@ -1061,7 +1066,11 @@ function updateNickLabel() {
 
 function greetOverlay() {
   if (!nickname || running) return;
-  if (overlayKicker) overlayKicker.textContent = `안녕, ${nickname}!`;
+  if (overlayKicker) {
+    const heartsNow = pendingHearts + shield;
+    overlayKicker.textContent =
+      heartsNow > 0 ? `안녕, ${nickname}! · 보유 하트 ${heartsNow}개` : `안녕, ${nickname}!`;
+  }
 }
 
 function openNickScreen() {
@@ -1107,6 +1116,87 @@ function saveNickname() {
   beep(760, 0.08);
 }
 
+// ---- 온라인 랭킹 (Supabase, 설정된 경우에만) ----
+function supabaseCfg() {
+  const c = window.PENGUIN_SUPABASE || {};
+  return c.url && c.anonKey ? c : null;
+}
+
+function submitScoreOnline() {
+  const cfg = supabaseCfg();
+  if (!cfg || !nickname) return;
+  const value = Math.max(best, score);
+  if (value <= 0) return;
+  try {
+    // 점수 쓰기는 서버리스 함수(/api/submit-score)로만. 서비스 키는 서버에만 있고
+    // 클라이언트에는 쓰기 권한이 없어 임의 점수 삽입을 막는다(읽기는 공개).
+    fetch("/api/submit-score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nick: nickname, score: value, coins: coinCount }),
+    }).catch(() => {});
+  } catch (e) {
+    // 네트워크 오류가 나도 게임은 계속돼요.
+  }
+}
+
+function fetchOnlineRanks() {
+  const cfg = supabaseCfg();
+  if (!cfg) return Promise.resolve(null);
+  const col = rankMode === "coin" ? "coins" : "score";
+  const url = `${cfg.url}/rest/v1/scores?select=nick,score,coins&order=${col}.desc&limit=200`;
+  return fetch(url, {
+    headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+  }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+}
+
+function normalizeLocalRanks() {
+  return loadRanks().map((r) => ({
+    nick: r.nick,
+    score: Number(r.best) || 0,
+    coins: Number(r.coins) || 0,
+  }));
+}
+
+// 같은 닉네임은 최고 점수/코인만 남긴다.
+function dedupeByNick(rows) {
+  const map = new Map();
+  rows.forEach((r) => {
+    if (!r || !r.nick) return;
+    const cur = map.get(r.nick);
+    if (!cur) {
+      map.set(r.nick, { nick: r.nick, score: Number(r.score) || 0, coins: Number(r.coins) || 0 });
+    } else {
+      cur.score = Math.max(cur.score, Number(r.score) || 0);
+      cur.coins = Math.max(cur.coins, Number(r.coins) || 0);
+    }
+  });
+  return [...map.values()];
+}
+
+function paintRank(rows, note) {
+  if (!rankList) return;
+  const sorted = rows.slice().sort((a, b) =>
+    rankMode === "coin" ? b.coins - a.coins : b.score - a.score
+  );
+  if (!sorted.length) {
+    rankList.innerHTML = `<li class="rank-empty">${rankMode === "coin" ? "아직 코인 기록이 없어요." : "아직 점수 기록이 없어요."}</li>`;
+    return;
+  }
+  const medals = ["🥇", "🥈", "🥉"];
+  const head = note ? `<li class="rank-empty">${note}</li>` : "";
+  rankList.innerHTML =
+    head +
+    sorted
+      .slice(0, 10)
+      .map((r, i) => {
+        const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
+        const me = r.nick === nickname ? " me" : "";
+        return `<li class="${me.trim()}"><span class="rank-place">${medals[i] || i + 1}</span><span>${r.nick}${r.nick === nickname ? " (나)" : ""}</span><strong>${value}</strong></li>`;
+      })
+      .join("");
+}
+
 function renderRank() {
   if (rankHello) {
     rankHello.textContent = nickname ? `나는 ${nickname}` : "아직 닉네임이 없어요.";
@@ -1114,25 +1204,27 @@ function renderRank() {
   if (rankTabScore) rankTabScore.classList.toggle("on", rankMode === "score");
   if (rankTabCoin) rankTabCoin.classList.toggle("on", rankMode === "coin");
   if (!rankList) return;
-  const ranks = loadRanks().slice();
-  ranks.sort((a, b) =>
-    rankMode === "coin"
-      ? (Number(b.coins) || 0) - (Number(a.coins) || 0)
-      : (Number(b.best) || 0) - (Number(a.best) || 0)
-  );
-  if (!ranks.length) {
-    rankList.innerHTML = `<li class="rank-empty">${rankMode === "coin" ? "아직 코인 기록이 없어요." : "아직 점수 기록이 없어요."}</li>`;
+
+  const cfg = supabaseCfg();
+  if (!cfg) {
+    paintRank(dedupeByNick(normalizeLocalRanks()));
     return;
   }
-  const medals = ["🥇", "🥈", "🥉"];
-  rankList.innerHTML = ranks
-    .slice(0, 10)
-    .map((r, i) => {
-      const value = rankMode === "coin" ? `${Number(r.coins) || 0}코인` : `${Number(r.best) || 0}점`;
-      const me = r.nick === nickname ? " me" : "";
-      return `<li class="${me.trim()}"><span class="rank-place">${medals[i] || i + 1}</span><span>${r.nick}${r.nick === nickname ? " (나)" : ""}</span><strong>${value}</strong></li>`;
+  rankList.innerHTML = `<li class="rank-empty">전 세계 기록 불러오는 중…</li>`;
+  fetchOnlineRanks()
+    .then((rows) => {
+      if (!rankOpen) return;
+      const online = (rows || []).map((r) => ({
+        nick: r.nick,
+        score: Number(r.score) || 0,
+        coins: Number(r.coins) || 0,
+      }));
+      paintRank(dedupeByNick(online.concat(normalizeLocalRanks())));
     })
-    .join("");
+    .catch(() => {
+      if (!rankOpen) return;
+      paintRank(dedupeByNick(normalizeLocalRanks()), "인터넷 기록을 못 불러와 이 기기 기록만 보여요.");
+    });
 }
 
 function openRank() {
@@ -1231,6 +1323,7 @@ function buyShopItem(kind) {
     takePickup(kind);
   } else if (kind === "heart") {
     pendingHearts += 1;
+    savePendingHearts();
   } else if (kind === "star") {
     pendingStar = true;
   } else if (kind === "mushroom") {
@@ -1311,6 +1404,9 @@ function updateHitAnim() {
 
 function gameOver(type = "bump", eaterKind = "bear") {
   running = false;
+  // 남은 하트는 잃지 않고 다음 판으로 이월(최대 9개)
+  pendingHearts = Math.min(9, shield);
+  savePendingHearts();
   shield = 0;
   starTime = 0;
   mushroomTime = 0;
@@ -1324,6 +1420,7 @@ function gameOver(type = "bump", eaterKind = "bear") {
     best = score;
     localStorage.setItem("penguin-best", String(best));
   }
+  submitScoreOnline();
   overlayKicker.textContent = "게임 오버";
   overlayTitle.textContent = "잡혔어요!";
   if (type === "shot") {
@@ -1336,7 +1433,7 @@ function gameOver(type = "bump", eaterKind = "bear") {
   } else {
     overlayText.textContent = `${currentStage().id}단계 ${currentStage().name}까지 왔어요. 다시 도전해서 더 멀리 달려 보세요.`;
   }
-  overlayScore.textContent = `점수 ${score} · 이번 코인 ${runCoins} · 총 코인 ${coinCount} · 물고기 ${fishCount}마리 · 최고 ${best}`;
+  overlayScore.textContent = `점수 ${score} · 이번 코인 ${runCoins} · 총 코인 ${coinCount} · 물고기 ${fishCount}마리 · 최고 ${best} · 다음 판 하트 ${pendingHearts}개`;
   overlayScore.classList.remove("hidden");
   startBtn.textContent = "다시 하기";
   overlay.classList.remove("hidden");
@@ -1354,7 +1451,8 @@ function drawBackground() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (isNight || id === 5) {
+  const starry = isNight || id === 5;
+  if (starry) {
     stars.forEach((s) => {
       const shine = 0.55 + Math.sin(frame / 18 + s.twinkle) * 0.45;
       ctx.fillStyle = `rgba(255,255,255,${shine})`;
@@ -1364,36 +1462,22 @@ function drawBackground() {
     });
   }
 
+  const w = canvas.width;
+  // 해 / 달 (부드러운 글로우, 화면 폭에 맞춘 위치)
   if (!isNight && id === 1) {
-    ctx.fillStyle = "rgba(255, 230, 140, 0.45)";
-    ctx.beginPath();
-    ctx.arc(790, 78, 52, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ffe566";
-    ctx.beginPath();
-    ctx.arc(790, 78, 28, 0, Math.PI * 2);
-    ctx.fill();
+    drawGlowOrb(w * 0.82, 82, 28, "#ffe566", "255,230,140");
   } else if (!isNight && id === 4) {
-    ctx.fillStyle = "rgba(255, 140, 70, 0.5)";
-    ctx.beginPath();
-    ctx.arc(700, 210, 48, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ff9a4a";
-    ctx.beginPath();
-    ctx.arc(700, 210, 26, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (isNight || id === 5) {
-    const moonY = id === 5 ? 58 : 72;
-    ctx.fillStyle = "rgba(255, 248, 210, 0.25)";
-    ctx.beginPath();
-    ctx.arc(820, moonY, 42, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff6c8";
-    ctx.beginPath();
-    ctx.arc(820, moonY, 26, 0, Math.PI * 2);
-    ctx.fill();
+    drawGlowOrb(w * 0.72, 210, 26, "#ff9a4a", "255,140,70");
+  } else if (starry) {
+    drawGlowOrb(w * 0.84, id === 5 ? 58 : 72, 26, "#fff6c8", "255,248,210");
   }
 
+  // 낮 하늘에는 흘러가는 구름
+  if (!starry) drawClouds();
+
+  // 오로라 (화면 폭에 맞춰 가로로 늘림)
+  ctx.save();
+  ctx.scale(w / 960, 1);
   ctx.globalAlpha = t.aurora;
   ctx.fillStyle = t.auroraA;
   ctx.beginPath();
@@ -1411,6 +1495,10 @@ function drawBackground() {
   ctx.bezierCurveTo(480, 60, 330, 120, 200, 70);
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // 먼 산맥 (패럴랙스: 뒤 레이어는 느리게 흐름)
+  drawFarMountains(t);
 
   hills.forEach((h, i) => drawScenery(h, t.hill[i % 2]));
 
@@ -1430,6 +1518,73 @@ function drawBackground() {
   for (let x = -((frame * speed) % gap); x < canvas.width; x += gap) {
     ctx.fillRect(x, GROUND + 10, id === 5 ? 18 : 28, 5);
   }
+}
+
+// 부드러운 글로우가 있는 해/달. glowRGB 는 "r,g,b" 문자열.
+function drawGlowOrb(x, y, r, core, glowRGB) {
+  ctx.fillStyle = `rgba(${glowRGB},0.16)`;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(${glowRGB},0.4)`;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 지평선 위로 반복되는 삼각 산맥 실루엣.
+function drawPeaks(startX, h, spacing) {
+  const w = canvas.width;
+  const baseY = GROUND + 4;
+  ctx.beginPath();
+  ctx.moveTo(startX - spacing, baseY);
+  for (let x = startX - spacing; x < w + spacing; x += spacing) {
+    ctx.lineTo(x + spacing / 2, baseY - h);
+    ctx.lineTo(x + spacing, baseY);
+  }
+  ctx.lineTo(w + spacing, baseY);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 두 겹의 먼 산맥이 서로 다른 속도로 흐른다(패럴랙스).
+function drawFarMountains(t) {
+  const prev = ctx.globalAlpha;
+  const off1 = (frame * speed * 0.12) % 300;
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = t.hill[1];
+  drawPeaks(-off1, 150, 300);
+  const off2 = (frame * speed * 0.26) % 220;
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = t.hill[0];
+  drawPeaks(-off2 - 50, 105, 220);
+  ctx.globalAlpha = prev;
+}
+
+function puff(x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.85, y + 6, r * 0.72, 0, Math.PI * 2);
+  ctx.arc(x - r * 0.85, y + 6, r * 0.72, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 낮 하늘을 천천히 흘러가는 구름 몇 조각.
+function drawClouds() {
+  const w = canvas.width;
+  const span = w + 220;
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  const bases = [0.12, 0.46, 0.78];
+  bases.forEach((fx, i) => {
+    const drift = (frame * speed * (0.14 + i * 0.03)) % span;
+    let cx = fx * w - drift;
+    cx = ((cx % span) + span) % span - 110;
+    puff(cx, 54 + i * 30, 26 + i * 6);
+  });
 }
 
 function drawScenery(h, color) {
@@ -2116,6 +2271,30 @@ nightBtn.addEventListener("click", () => {
   localStorage.setItem("penguin-night", isNight ? "1" : "0");
   applyTheme();
 });
+
+// ---- 음악 켜기/끄기 ----
+const musicBtn = document.getElementById("music-btn");
+function updateMusicUi() {
+  if (musicBtn) {
+    musicBtn.textContent = musicOn ? "🎵 음악 켬" : "🔇 음악 끔";
+    musicBtn.classList.toggle("off", !musicOn);
+  }
+  const tm = document.getElementById("t-music");
+  if (tm) tm.textContent = musicOn ? "🎵" : "🔇";
+}
+function toggleMusic() {
+  musicOn = !musicOn;
+  localStorage.setItem("penguin-music", musicOn ? "1" : "0");
+  if (musicOn) {
+    if (running) startMusic();
+  } else {
+    stopMusic();
+  }
+  updateMusicUi();
+}
+if (musicBtn) musicBtn.addEventListener("click", toggleMusic);
+updateMusicUi();
+
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "ArrowUp") {
     if (nickOpen) return;
@@ -2133,6 +2312,7 @@ const stageBox = document.querySelector(".stage");
 const tRank = document.getElementById("t-rank");
 const tShop = document.getElementById("t-shop");
 const tNight = document.getElementById("t-night");
+const tMusic = document.getElementById("t-music");
 const tFs = document.getElementById("t-fs");
 
 function fullscreenEl() {
@@ -2222,6 +2402,7 @@ if (tFs) tFs.addEventListener("click", toggleFs);
 if (tRank) tRank.addEventListener("click", () => rankBtn && rankBtn.click());
 if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
 if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
+if (tMusic) tMusic.addEventListener("click", toggleMusic);
 document.addEventListener("fullscreenchange", syncFsUi);
 document.addEventListener("webkitfullscreenchange", syncFsUi);
 
