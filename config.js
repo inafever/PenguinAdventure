@@ -7,12 +7,11 @@
 //   - url    : Project URL            (예: https://abcdefgh.supabase.co)
 //   - anonKey: Project API keys > anon (public) key
 //
-// 참고: anon 키는 브라우저에 공개되어도 되는 "공개 키"입니다(여기서는 랭킹 "읽기"에만 사용).
-//       점수 "쓰기"는 위변조 방지를 위해 서버리스 함수(api/submit-score.js)로만 처리하며,
-//       비밀 키(service_role)는 Vercel 환경변수에만 두고 절대 커밋하지 않습니다.
+// 참고: anon 키는 브라우저에 공개되어도 되는 "공개 키"입니다(여기서는 랭킹 "읽기"와
+//       서버 함수 submit_score 호출에만 사용). 테이블 직접 INSERT 는 RLS로 막고,
+//       쓰기는 아래 SQL의 submit_score 함수가 범위 검사 후에만 수행합니다.
 //
-// Supabase에서 아래 SQL을 한 번 실행해 테이블과 "읽기 전용" 공개 정책을 만들어 주세요.
-// (anon 은 select 만 가능. insert 정책은 만들지 않아 클라이언트 직접 쓰기를 차단)
+// Supabase SQL Editor에서 아래를 한 번 실행하세요.
 //
 //   create table if not exists scores (
 //     id bigint generated always as identity primary key,
@@ -22,12 +21,36 @@
 //     created_at timestamptz not null default now()
 //   );
 //   alter table scores enable row level security;
+//   drop policy if exists "insert scores" on scores;
+//   drop policy if exists "read scores" on scores;
 //   create policy "read scores" on scores for select using (true);
-//   -- 이전에 insert 정책을 만들었다면 제거: drop policy if exists "insert scores" on scores;
 //
-// 그리고 Vercel 환경변수에 아래 두 값을 설정하세요(서버 전용, 비공개):
-//   - SUPABASE_URL              = 위 url 과 동일
-//   - SUPABASE_SERVICE_ROLE_KEY = Supabase > Project Settings > API > service_role (secret)
+//   create or replace function submit_score(p_nick text, p_score int, p_coins int)
+//   returns json
+//   language plpgsql
+//   security definer
+//   set search_path = public
+//   as $$
+//   declare
+//     n text;
+//   begin
+//     n := trim(both from coalesce(p_nick, ''));
+//     if char_length(n) < 1 or char_length(n) > 10 then
+//       raise exception 'invalid nick';
+//     end if;
+//     if p_score is null or p_score < 0 or p_score > 100000 then
+//       raise exception 'invalid score';
+//     end if;
+//     if p_coins is null or p_coins < 0 or p_coins > 100000 then
+//       raise exception 'invalid coins';
+//     end if;
+//     insert into public.scores (nick, score, coins) values (n, p_score, p_coins);
+//     return json_build_object('ok', true);
+//   end;
+//   $$;
+//
+//   revoke all on function public.submit_score(text, int, int) from public;
+//   grant execute on function public.submit_score(text, int, int) to anon, authenticated;
 //
 window.PENGUIN_SUPABASE = {
   url: "https://yahktwaabetayemhjech.supabase.co",

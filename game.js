@@ -1127,16 +1127,23 @@ function submitScoreOnline() {
   if (!cfg || !nickname) return;
   const value = Math.max(best, score);
   if (value <= 0) return;
+  const payload = { p_nick: nickname, p_score: value, p_coins: coinCount };
   try {
-    // 점수 쓰기는 서버리스 함수(/api/submit-score)로만. 서비스 키는 서버에만 있고
-    // 클라이언트에는 쓰기 권한이 없어 임의 점수 삽입을 막는다(읽기는 공개).
-    fetch("/api/submit-score", {
+    // 점수 쓰기는 서버 함수(submit_score, SECURITY DEFINER)로만.
+    // 테이블 직접 INSERT 는 RLS로 막고, 범위 검사 후에만 저장된다.
+    fetch(`${cfg.url}/rest/v1/rpc/submit_score`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nick: nickname, score: value, coins: coinCount }),
-    }).catch(() => {});
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+      },
+      body: JSON.stringify(payload),
+    }).catch((err) => {
+      console.warn("점수 제출 실패", err);
+    });
   } catch (e) {
-    // 네트워크 오류가 나도 게임은 계속돼요.
+    console.warn("점수 제출 실패", e);
   }
 }
 
