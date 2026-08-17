@@ -2127,10 +2127,13 @@ canvas.addEventListener("pointerdown", jump);
 
 // ---- 전체화면 & 화면 방향 ----
 const fsBtn = document.getElementById("fs-btn");
-const fsExitBtn = document.getElementById("fs-exit");
 const fsRotateBtn = document.getElementById("fs-rotate");
 const rotateEl = document.getElementById("rotate");
 const stageBox = document.querySelector(".stage");
+const tRank = document.getElementById("t-rank");
+const tShop = document.getElementById("t-shop");
+const tNight = document.getElementById("t-night");
+const tFs = document.getElementById("t-fs");
 
 function fullscreenEl() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -2180,13 +2183,45 @@ function toggleFs() {
 
 function syncFsUi() {
   const on = inFullscreen();
-  if (fsExitBtn) fsExitBtn.classList.toggle("hidden", !on);
+  if (tFs) tFs.textContent = on ? "✕" : "⛶";
   if (fsBtn) fsBtn.textContent = on ? "⛶ 전체화면 끄기" : "⛶ 전체화면";
+  fitCanvas();
+}
+
+// 가로/전체화면처럼 화면을 꽉 채우는 모드인지.
+function isFillMode() {
+  return (
+    inFullscreen() ||
+    window.matchMedia("(orientation: landscape) and (max-height: 600px)").matches
+  );
+}
+
+/*
+ * 화면비율 최적화: 내부 높이(540)와 게임 로직(GROUND 등)은 그대로 두고,
+ * 꽉 채움 모드에서는 내부 폭만 화면 비율에 맞춰 바꿔 여백 없이 채운다.
+ * 수평 로직은 이미 canvas.width 기준이라 안전하다.
+ */
+function fitCanvas() {
+  let targetW = 960;
+  if (isFillMode()) {
+    const ratio = window.innerWidth / Math.max(1, window.innerHeight);
+    targetW = Math.max(720, Math.min(1400, Math.round(540 * ratio)));
+  }
+  if (canvas.width !== targetW) {
+    canvas.width = targetW;
+    // 배경 장식을 새 폭에 맞춰 다시 생성 (지면 높이/게임 로직은 무변경)
+    makeSnow();
+    makeStars();
+    makeHills();
+  }
 }
 
 if (fsBtn) fsBtn.addEventListener("click", toggleFs);
-if (fsExitBtn) fsExitBtn.addEventListener("click", exitFs);
 if (fsRotateBtn) fsRotateBtn.addEventListener("click", requestFs);
+if (tFs) tFs.addEventListener("click", toggleFs);
+if (tRank) tRank.addEventListener("click", () => rankBtn && rankBtn.click());
+if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
+if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
 document.addEventListener("fullscreenchange", syncFsUi);
 document.addEventListener("webkitfullscreenchange", syncFsUi);
 
@@ -2209,9 +2244,12 @@ function checkOrientation() {
   if (rotateEl) rotateEl.classList.toggle("hidden", !show);
 }
 
-window.addEventListener("resize", checkOrientation);
-window.addEventListener("orientationchange", checkOrientation);
-checkOrientation();
+function onViewport() {
+  checkOrientation();
+  fitCanvas();
+}
+window.addEventListener("resize", onViewport);
+window.addEventListener("orientationchange", onViewport);
 
 makeSnow();
 makeStars();
@@ -2219,6 +2257,7 @@ makeHills();
 applyTheme();
 updateHud();
 updateNickLabel();
+onViewport();
 if (!nickname) openNickScreen();
 else {
   overlay.classList.remove("hidden");
