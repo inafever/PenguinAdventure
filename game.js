@@ -255,7 +255,7 @@ let rankOpen = false;
 let rotateOpen = false;
 let rankMode = "score";
 let nickname = (localStorage.getItem("penguin-nick") || "").trim();
-let pendingHearts = 0;
+let pendingHearts = Number(localStorage.getItem("penguin-hearts") || 0);
 let pendingTrail = false;
 let pendingGuard = 0;
 let pendingCloak = false;
@@ -291,6 +291,7 @@ function resetGame() {
   runCoins = 0;
   shield = pendingHearts;
   pendingHearts = 0;
+  savePendingHearts();
   doubleJumpUsed = false;
   mushroomTime = mushroomCount > 0 ? 600 : 0;
   canDoubleJump = mushroomCount > 0;
@@ -486,7 +487,7 @@ function jump() {
 let audioCtx = null;
 let musicGain = null;
 let musicNodes = [];
-let musicOn = true;
+let musicOn = localStorage.getItem("penguin-music") !== "0";
 let musicPlaying = false;
 let musicNextTime = 0;
 let musicNote = 0;
@@ -1019,6 +1020,10 @@ function saveCoins() {
   saveMyRank();
 }
 
+function savePendingHearts() {
+  localStorage.setItem("penguin-hearts", String(pendingHearts));
+}
+
 function loadRanks() {
   try {
     const data = JSON.parse(localStorage.getItem("penguin-ranks") || "[]");
@@ -1061,7 +1066,11 @@ function updateNickLabel() {
 
 function greetOverlay() {
   if (!nickname || running) return;
-  if (overlayKicker) overlayKicker.textContent = `안녕, ${nickname}!`;
+  if (overlayKicker) {
+    const heartsNow = pendingHearts + shield;
+    overlayKicker.textContent =
+      heartsNow > 0 ? `안녕, ${nickname}! · 보유 하트 ${heartsNow}개` : `안녕, ${nickname}!`;
+  }
 }
 
 function openNickScreen() {
@@ -1231,6 +1240,7 @@ function buyShopItem(kind) {
     takePickup(kind);
   } else if (kind === "heart") {
     pendingHearts += 1;
+    savePendingHearts();
   } else if (kind === "star") {
     pendingStar = true;
   } else if (kind === "mushroom") {
@@ -1311,6 +1321,9 @@ function updateHitAnim() {
 
 function gameOver(type = "bump", eaterKind = "bear") {
   running = false;
+  // 남은 하트는 잃지 않고 다음 판으로 이월(최대 9개)
+  pendingHearts = Math.min(9, shield);
+  savePendingHearts();
   shield = 0;
   starTime = 0;
   mushroomTime = 0;
@@ -1336,7 +1349,7 @@ function gameOver(type = "bump", eaterKind = "bear") {
   } else {
     overlayText.textContent = `${currentStage().id}단계 ${currentStage().name}까지 왔어요. 다시 도전해서 더 멀리 달려 보세요.`;
   }
-  overlayScore.textContent = `점수 ${score} · 이번 코인 ${runCoins} · 총 코인 ${coinCount} · 물고기 ${fishCount}마리 · 최고 ${best}`;
+  overlayScore.textContent = `점수 ${score} · 이번 코인 ${runCoins} · 총 코인 ${coinCount} · 물고기 ${fishCount}마리 · 최고 ${best} · 다음 판 하트 ${pendingHearts}개`;
   overlayScore.classList.remove("hidden");
   startBtn.textContent = "다시 하기";
   overlay.classList.remove("hidden");
@@ -2116,6 +2129,30 @@ nightBtn.addEventListener("click", () => {
   localStorage.setItem("penguin-night", isNight ? "1" : "0");
   applyTheme();
 });
+
+// ---- 음악 켜기/끄기 ----
+const musicBtn = document.getElementById("music-btn");
+function updateMusicUi() {
+  if (musicBtn) {
+    musicBtn.textContent = musicOn ? "🎵 음악 켬" : "🔇 음악 끔";
+    musicBtn.classList.toggle("off", !musicOn);
+  }
+  const tm = document.getElementById("t-music");
+  if (tm) tm.textContent = musicOn ? "🎵" : "🔇";
+}
+function toggleMusic() {
+  musicOn = !musicOn;
+  localStorage.setItem("penguin-music", musicOn ? "1" : "0");
+  if (musicOn) {
+    if (running) startMusic();
+  } else {
+    stopMusic();
+  }
+  updateMusicUi();
+}
+if (musicBtn) musicBtn.addEventListener("click", toggleMusic);
+updateMusicUi();
+
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "ArrowUp") {
     if (nickOpen) return;
@@ -2133,6 +2170,7 @@ const stageBox = document.querySelector(".stage");
 const tRank = document.getElementById("t-rank");
 const tShop = document.getElementById("t-shop");
 const tNight = document.getElementById("t-night");
+const tMusic = document.getElementById("t-music");
 const tFs = document.getElementById("t-fs");
 
 function fullscreenEl() {
@@ -2222,6 +2260,7 @@ if (tFs) tFs.addEventListener("click", toggleFs);
 if (tRank) tRank.addEventListener("click", () => rankBtn && rankBtn.click());
 if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
 if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
+if (tMusic) tMusic.addEventListener("click", toggleMusic);
 document.addEventListener("fullscreenchange", syncFsUi);
 document.addEventListener("webkitfullscreenchange", syncFsUi);
 
