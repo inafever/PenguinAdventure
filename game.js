@@ -15,6 +15,10 @@ const shopClose = document.getElementById("shop-close");
 const shopCoinsEl = document.getElementById("shop-coins");
 const shopMsgEl = document.getElementById("shop-msg");
 const nickEl = document.getElementById("nick");
+const charEl = document.getElementById("char");
+const charGrid = document.getElementById("char-grid");
+const charOk = document.getElementById("char-ok");
+const charCloseBtn = document.getElementById("char-close");
 const nickInput = document.getElementById("nick-input");
 const nickSave = document.getElementById("nick-save");
 const nickMsgEl = document.getElementById("nick-msg");
@@ -173,6 +177,170 @@ loadSprite("bear", "assets/bear.png");
 loadSprite("wolf", "assets/wolf.png");
 loadSprite("hunter", "assets/hunter.png");
 
+// 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
+// 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
+const CHARACTERS = [
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16 },
+  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206, footPad: 2 },
+  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247, footPad: 2 },
+  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206, footPad: 2 },
+  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179, opaqueW: 235, opaqueH: 169, footPad: 2 },
+];
+const CHAR_DRAW_W = 72;
+const CHAR_DRAW_H = 84;
+const charFrames = {};
+const CHAR_IDS = CHARACTERS.map((c) => c.id);
+const charBgQueue = [];
+let charBgTimer = 0;
+
+function findCharacter(id) {
+  return CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
+}
+
+function charFrameUrl(prefix, action, dir, n) {
+  return `assets/main-characters/${prefix}_${action}_${dir}_${n}.png`;
+}
+
+function makeCharImg(url) {
+  const img = new Image();
+  img.decoding = "async";
+  img._srcPath = url;
+  return img;
+}
+
+function ensureCharSrc(img, priority) {
+  if (!img || !img._srcPath) return;
+  if (priority === "high") img.fetchPriority = "high";
+  if (img._wanted) return;
+  img._wanted = true;
+  img.src = encodeURI(img._srcPath);
+}
+
+function eachCharFrame(ch, fn) {
+  const pack = charFrames[ch.id];
+  if (!pack) return;
+  pack.walk.forEach(fn);
+  pack.jump.forEach(fn);
+  pack.slide.forEach(fn);
+}
+
+function loadCharacterAnim(id, priority) {
+  const ch = findCharacter(id);
+  eachCharFrame(ch, (img) => ensureCharSrc(img, priority || "high"));
+}
+
+function pumpCharBgQueue() {
+  charBgTimer = 0;
+  let n = 0;
+  while (charBgQueue.length && n < 3) {
+    ensureCharSrc(charBgQueue.shift(), "low");
+    n += 1;
+  }
+  if (charBgQueue.length) charBgTimer = setTimeout(pumpCharBgQueue, 40);
+}
+
+function enqueueOtherCharacters(exceptId) {
+  CHARACTERS.forEach((ch) => {
+    if (ch.id === exceptId) return;
+    eachCharFrame(ch, (img) => {
+      if (!img._wanted) charBgQueue.push(img);
+    });
+  });
+  if (!charBgTimer && charBgQueue.length) pumpCharBgQueue();
+}
+
+CHARACTERS.forEach((ch) => {
+  const pack = { walk: [], jump: [], slide: [] };
+  for (let i = 1; i <= ch.walk; i++) {
+    pack.walk.push(makeCharImg(charFrameUrl(ch.prefix, "walk", "right", i)));
+  }
+  for (let i = 1; i <= ch.jump; i++) {
+    pack.jump.push(makeCharImg(charFrameUrl(ch.prefix, "jump", "right", i)));
+  }
+  if (ch.slide) {
+    for (let i = 1; i <= ch.slide; i++) {
+      pack.slide.push(makeCharImg(charFrameUrl(ch.prefix, "slide", "right", i)));
+    }
+  }
+  charFrames[ch.id] = pack;
+  ensureCharSrc(pack.walk[0], "high");
+});
+
+function startCharacterLoading() {
+  const first = CHAR_IDS.includes(selectedCharId) ? selectedCharId : "penguin";
+  loadCharacterAnim(first, "high");
+  enqueueOtherCharacters(first);
+}
+
+function readyFrames(list) {
+  return (list || []).filter((img) => img && img.complete && img.naturalWidth > 0);
+}
+
+function jumpFrameIndex(n, vy) {
+  if (n <= 1) return 0;
+  if (n === 2) return vy < 0 ? 0 : 1;
+  if (n === 3) {
+    if (vy < -4) return 0;
+    if (vy < 6) return 1;
+    return 2;
+  }
+  if (vy < -8) return 0;
+  if (vy < -2) return 1;
+  if (vy < 8) return 2;
+  return 3;
+}
+
+function charScale(ch) {
+  const ow = ch.opaqueW || ch.refW || CHAR_DRAW_W;
+  const oh = ch.opaqueH || ch.refH || CHAR_DRAW_H;
+  return Math.min(CHAR_DRAW_W / ow, CHAR_DRAW_H / oh);
+}
+
+function spriteDrawSize(ch, sprite) {
+  const scale = charScale(ch);
+  const dw = sprite.width * scale;
+  const dh = sprite.height * scale;
+  const foot = dh - (ch.footPad || 0) * scale;
+  return { dw, dh, foot, scale };
+}
+
+function opaqueRect(ch, img) {
+  const ow = Math.min(ch.opaqueW || img.naturalWidth, img.naturalWidth);
+  const oh = Math.min(ch.opaqueH || img.naturalHeight, img.naturalHeight);
+  const padB = ch.footPad || 0;
+  const sy = Math.max(0, img.naturalHeight - padB - oh);
+  const sx = Math.max(0, Math.floor((img.naturalWidth - ow) / 2));
+  return {
+    sx,
+    sy,
+    sw: Math.min(ow, img.naturalWidth - sx),
+    sh: Math.min(oh, img.naturalHeight - sy),
+  };
+}
+
+function currentPlayerSprite(ch) {
+  const pack = charFrames[ch.id];
+  if (!pack) return sprites.penguin;
+  if (!penguin.onGround) {
+    const jumps = pack.jump;
+    const n = jumps.length;
+    if (n) {
+      const img = jumps[jumpFrameIndex(n, penguin.vy)];
+      if (img && img.complete && img.naturalWidth > 0) return img;
+      const ready = readyFrames(jumps);
+      if (ready.length) return ready[ready.length - 1];
+    }
+  }
+  const walks = pack.walk;
+  if (walks.length) {
+    const step = running ? Math.max(4, Math.round(16 - speed)) : 7;
+    const img = walks[Math.floor(frame / step) % walks.length];
+    if (img && img.complete && img.naturalWidth > 0) return img;
+    if (walks[0] && walks[0].complete && walks[0].naturalWidth > 0) return walks[0];
+  }
+  return sprites.penguin;
+}
+
 const STAGES = [
   {
     id: 1,
@@ -253,9 +421,14 @@ let runCoins = 0;
 let shopOpen = false;
 let nickOpen = false;
 let rankOpen = false;
+let charOpen = false;
 let rotateOpen = false;
 let rankMode = "score";
 let nickname = (localStorage.getItem("penguin-nick") || "").trim();
+const savedCharId = localStorage.getItem("penguin-char") || "";
+let selectedCharId = CHAR_IDS.includes(savedCharId) ? savedCharId : "";
+let pendingCharId = selectedCharId || "penguin";
+startCharacterLoading();
 let pendingHearts = Number(localStorage.getItem("penguin-hearts") || 0);
 let pendingTrail = false;
 let pendingGuard = 0;
@@ -325,6 +498,8 @@ function resetGame() {
   makeStars();
   makeHills();
   overlay.classList.add("hidden");
+  charOpen = false;
+  if (charEl) charEl.classList.add("hidden");
   closeShop();
   closeRank();
   startMusic();
@@ -465,9 +640,13 @@ function applyTheme() {
 }
 
 function jump() {
-  if (shopOpen || nickOpen || rankOpen || hitAnim) return;
+  if (shopOpen || nickOpen || rankOpen || charOpen || hitAnim) return;
   if (!nickname) {
     openNickScreen();
+    return;
+  }
+  if (!selectedCharId) {
+    openCharScreen();
     return;
   }
   if (!running) {
@@ -1072,15 +1251,30 @@ function updateNickLabel() {
 
 function greetOverlay() {
   if (!nickname || running) return;
+  const ch = findCharacter(selectedCharId || pendingCharId);
   if (overlayKicker) {
     const heartsNow = pendingHearts + shield;
-    overlayKicker.textContent =
-      heartsNow > 0 ? `안녕, ${nickname}! · 보유 하트 ${heartsNow}개` : `안녕, ${nickname}!`;
+    const who = `안녕, ${nickname}! · ${ch.name}`;
+    overlayKicker.textContent = heartsNow > 0 ? `${who} · 보유 하트 ${heartsNow}개` : who;
   }
+}
+
+function showStartOverlayIfIdle() {
+  if (running || hitAnim || shopOpen || nickOpen || rankOpen || charOpen) return;
+  if (!nickname) return;
+  if (!selectedCharId) {
+    openCharScreen();
+    return;
+  }
+  overlay.classList.remove("hidden");
+  if (startBtn) startBtn.textContent = "시작하기";
+  greetOverlay();
 }
 
 function openNickScreen() {
   nickOpen = true;
+  charOpen = false;
+  if (charEl) charEl.classList.add("hidden");
   if (nickEl) nickEl.classList.remove("hidden");
   overlay.classList.add("hidden");
   if (shopEl) shopEl.classList.add("hidden");
@@ -1110,11 +1304,91 @@ function openNickScreen() {
 function closeNickScreen() {
   nickOpen = false;
   if (nickEl) nickEl.classList.add("hidden");
-  if (!running && !hitAnim && !shopOpen && !rankOpen && nickname) {
-    overlay.classList.remove("hidden");
-    startBtn.textContent = "시작하기";
-    greetOverlay();
+  showStartOverlayIfIdle();
+}
+
+function activeChar() {
+  const id = charOpen ? pendingCharId || selectedCharId : selectedCharId;
+  return findCharacter(id);
+}
+
+function paintStaticThumb(canvas, ch) {
+  const img = charFrames[ch.id] && charFrames[ch.id].walk[0];
+  if (!img) return;
+  ensureCharSrc(img, "high");
+  const draw = () => {
+    const x = canvas.getContext("2d");
+    x.clearRect(0, 0, canvas.width, canvas.height);
+    if (!img.naturalWidth) return;
+    const src = opaqueRect(ch, img);
+    const scale = Math.min((canvas.width - 12) / src.sw, (canvas.height - 10) / src.sh);
+    const dw = src.sw * scale;
+    const dh = src.sh * scale;
+    x.imageSmoothingEnabled = true;
+    x.drawImage(img, src.sx, src.sy, src.sw, src.sh, (canvas.width - dw) / 2, canvas.height - dh - 4, dw, dh);
+  };
+  if (img.complete && img.naturalWidth) draw();
+  else img.addEventListener("load", draw, { once: true });
+}
+
+function renderCharGrid() {
+  if (!charGrid) return;
+  charGrid.innerHTML = CHARACTERS.map((ch) => {
+    const on = (pendingCharId || selectedCharId) === ch.id ? " on" : "";
+    return `<button type="button" class="char-pick${on}" data-id="${ch.id}">
+      <canvas class="char-thumb" width="120" height="120" data-char="${ch.id}"></canvas>
+      <span>${ch.name}</span>
+    </button>`;
+  }).join("");
+  charGrid.querySelectorAll(".char-pick").forEach((btn) => {
+    const ch = findCharacter(btn.dataset.id);
+    const canvas = btn.querySelector(".char-thumb");
+    if (canvas) paintStaticThumb(canvas, ch);
+    btn.addEventListener("click", () => {
+      pendingCharId = btn.dataset.id;
+      loadCharacterAnim(pendingCharId, "high");
+      charGrid.querySelectorAll(".char-pick").forEach((b) => {
+        b.classList.toggle("on", b.dataset.id === pendingCharId);
+      });
+    });
+  });
+}
+
+function openCharScreen() {
+  if (!nickname) {
+    openNickScreen();
+    return;
   }
+  charOpen = true;
+  pendingCharId = selectedCharId || pendingCharId || "penguin";
+  if (charEl) charEl.classList.remove("hidden");
+  overlay.classList.add("hidden");
+  if (shopEl) shopEl.classList.add("hidden");
+  shopOpen = false;
+  if (rankEl) rankEl.classList.add("hidden");
+  rankOpen = false;
+  if (nickEl) nickEl.classList.add("hidden");
+  nickOpen = false;
+  if (charCloseBtn) charCloseBtn.classList.toggle("hidden", !selectedCharId);
+  renderCharGrid();
+}
+
+function closeCharScreen() {
+  charOpen = false;
+  pendingCharId = selectedCharId || pendingCharId;
+  if (charEl) charEl.classList.add("hidden");
+  showStartOverlayIfIdle();
+}
+
+function confirmCharacter() {
+  const id = pendingCharId || selectedCharId || "penguin";
+  if (!CHAR_IDS.includes(id)) return;
+  selectedCharId = id;
+  pendingCharId = id;
+  localStorage.setItem("penguin-char", selectedCharId);
+  loadCharacterAnim(selectedCharId, "high");
+  beep(760, 0.08);
+  closeCharScreen();
 }
 
 function saveNickname() {
@@ -1259,6 +1533,8 @@ function openRank() {
     return;
   }
   rankOpen = true;
+  charOpen = false;
+  if (charEl) charEl.classList.add("hidden");
   saveMyRank();
   if (rankEl) rankEl.classList.remove("hidden");
   overlay.classList.add("hidden");
@@ -1270,7 +1546,7 @@ function openRank() {
 function closeRank() {
   rankOpen = false;
   if (rankEl) rankEl.classList.add("hidden");
-  if (!running && !hitAnim && !shopOpen && !nickOpen && nickname) overlay.classList.remove("hidden");
+  showStartOverlayIfIdle();
 }
 
 const SHOP_ITEMS = {
@@ -1311,6 +1587,8 @@ function openShop() {
     return;
   }
   shopOpen = true;
+  charOpen = false;
+  if (charEl) charEl.classList.add("hidden");
   setShopMsg("");
   if (shopEl) shopEl.classList.remove("hidden");
   overlay.classList.add("hidden");
@@ -1320,7 +1598,7 @@ function openShop() {
 function closeShop() {
   shopOpen = false;
   if (shopEl) shopEl.classList.add("hidden");
-  if (!running && !hitAnim && !nickOpen && !rankOpen && nickname) overlay.classList.remove("hidden");
+  showStartOverlayIfIdle();
 }
 
 function buyShopItem(kind) {
@@ -1845,13 +2123,16 @@ function drawPenguin() {
   // 하트/방패로 막고 난 직후: 잠깐 깜빡여요.
   if (hurtFlash > 0 && !shot && !eaten && Math.floor(hurtFlash / 5) % 2 === 0) return;
 
-  const waddling = running && penguin.onGround && !shot && !eaten;
+  const ch = activeChar();
+  const sprite = currentPlayerSprite(ch);
+  const hasAnim = !!(sprite && sprite !== sprites.penguin && sprite.naturalWidth);
+  const waddling = !hasAnim && running && penguin.onGround && !shot && !eaten;
   const step = Math.sin(frame / 5.2);
   const waddleTilt = waddling ? step * 0.26 : 0;
   const waddleBob = waddling ? Math.abs(step) * 5 : 0;
   const waddleSway = waddling ? step * 4 : 0;
 
-  const tilt = shot ? 0.7 + hitAnim.frame * 0.012 : eaten ? 0.35 + eatP * 1.1 : penguin.onGround ? waddleTilt : -0.2;
+  const tilt = shot ? 0.7 + hitAnim.frame * 0.012 : eaten ? 0.35 + eatP * 1.1 : hasAnim ? 0 : penguin.onGround ? waddleTilt : -0.2;
 
   const px = eaten
     ? penguin.x + penguin.w / 2 + (hitAnim.bearX + hitAnim.bearW * 0.32 - (penguin.x + penguin.w / 2)) * eatP
@@ -1860,23 +2141,32 @@ function drawPenguin() {
     ? penguin.y - penguin.h / 2 + (hitAnim.bearY + hitAnim.bearH * 0.4 - (penguin.y - penguin.h / 2)) * eatP
     : penguin.y - waddleBob;
 
+  let dw = penguin.w;
+  let dh = penguin.h;
+  let foot = penguin.h;
+  if (hasAnim) {
+    const size = spriteDrawSize(ch, sprite);
+    dw = size.dw;
+    dh = size.dh;
+    foot = size.foot;
+  }
+
   ctx.save();
   if (cloakTime > 0 && !shot && !eaten) {
     ctx.globalAlpha = 0.26 + Math.sin(frame / 6) * 0.08;
   }
   ctx.translate(px, py);
+  ctx.imageSmoothingEnabled = !!hasAnim;
   if (eaten) {
     ctx.scale(1 - eatP * 0.9, 1 - eatP * 0.9);
     ctx.rotate(tilt);
-    ctx.imageSmoothingEnabled = false;
-    if (sprites.penguin) {
-      ctx.drawImage(sprites.penguin, -penguin.w / 2, -penguin.h / 2, penguin.w, penguin.h);
+    if (sprite) {
+      ctx.drawImage(sprite, -dw / 2, -dh / 2, dw, dh);
     }
   } else {
     ctx.rotate(tilt);
-    ctx.imageSmoothingEnabled = false;
-    if (sprites.penguin) {
-      ctx.drawImage(sprites.penguin, -penguin.w / 2, -penguin.h, penguin.w, penguin.h);
+    if (sprite) {
+      ctx.drawImage(sprite, -dw / 2, -foot, dw, dh);
     } else {
       ctx.fillStyle = "#1b2636";
       roundOval(-penguin.w / 2, -penguin.h, penguin.w, penguin.h);
@@ -2386,8 +2676,11 @@ function drawStageHud() {
 }
 
 function loop() {
-  if (running && !shopOpen && !rankOpen && !nickOpen && !rotateOpen) update();
-  else updateHitAnim();
+  if (running && !shopOpen && !rankOpen && !nickOpen && !charOpen && !rotateOpen) update();
+  else {
+    updateHitAnim();
+    if (!running && !hitAnim) frame += 1;
+  }
   draw();
   requestAnimationFrame(loop);
 }
@@ -2395,6 +2688,10 @@ function loop() {
 startBtn.addEventListener("click", () => {
   if (!nickname) {
     openNickScreen();
+    return;
+  }
+  if (!selectedCharId) {
+    openCharScreen();
     return;
   }
   resetGame();
@@ -2411,6 +2708,10 @@ const nickCloseBtn = document.getElementById("nick-close");
 if (nickBtn) nickBtn.addEventListener("click", openNickScreen);
 if (nickEdit) nickEdit.addEventListener("click", openNickScreen);
 if (nickCloseBtn) nickCloseBtn.addEventListener("click", closeNickScreen);
+if (charOk) charOk.addEventListener("click", confirmCharacter);
+if (charCloseBtn) charCloseBtn.addEventListener("click", closeCharScreen);
+const charBtn = document.getElementById("char-btn");
+if (charBtn) charBtn.addEventListener("click", openCharScreen);
 if (nickInput) {
   nickInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -2469,7 +2770,7 @@ updateMusicUi();
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "ArrowUp") {
-    if (nickOpen) return;
+    if (nickOpen || charOpen) return;
     e.preventDefault();
     jump();
   }
@@ -2487,6 +2788,7 @@ const tNight = document.getElementById("t-night");
 const tMusic = document.getElementById("t-music");
 const tFs = document.getElementById("t-fs");
 const tNick = document.getElementById("t-nick");
+const tChar = document.getElementById("t-char");
 
 function fullscreenEl() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -2577,6 +2879,7 @@ if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
 if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
 if (tMusic) tMusic.addEventListener("click", toggleMusic);
 if (tNick) tNick.addEventListener("click", openNickScreen);
+if (tChar) tChar.addEventListener("click", openCharScreen);
 document.addEventListener("fullscreenchange", syncFsUi);
 document.addEventListener("webkitfullscreenchange", syncFsUi);
 
@@ -2615,6 +2918,7 @@ updateHud();
 updateNickLabel();
 onViewport();
 if (!nickname) openNickScreen();
+else if (!selectedCharId) openCharScreen();
 else {
   overlay.classList.remove("hidden");
   greetOverlay();
