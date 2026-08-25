@@ -180,11 +180,11 @@ loadSprite("hunter", "assets/hunter.png");
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
-  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264 },
-  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243 },
-  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251 },
-  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239 },
-  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179 },
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200 },
+  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206 },
+  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247 },
+  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206 },
+  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179, opaqueW: 235, opaqueH: 169 },
 ];
 const CHAR_DRAW_W = 72;
 const CHAR_DRAW_H = 84;
@@ -195,8 +195,40 @@ function findCharacter(id) {
   return CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
 }
 
+function measureOpaque(img) {
+  if (img._meta) return img._meta;
+  if (!img.naturalWidth) return null;
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0);
+  const data = x.getImageData(0, 0, w, h).data;
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+  for (let p = 0, i = 3; i < data.length; i += 4, p++) {
+    if (data[i] <= 12) continue;
+    const px = p % w;
+    const py = (p / w) | 0;
+    if (px < minX) minX = px;
+    if (py < minY) minY = py;
+    if (px > maxX) maxX = px;
+    if (py > maxY) maxY = py;
+  }
+  img._meta =
+    maxX < minX
+      ? { minX: 0, minY: 0, maxX: w - 1, maxY: h - 1, ow: w, oh: h }
+      : { minX, minY, maxX, maxY, ow: maxX - minX + 1, oh: maxY - minY + 1 };
+  return img._meta;
+}
+
 function loadCharImage(url) {
   const img = new Image();
+  img.onload = () => measureOpaque(img);
   img.src = encodeURI(url);
   return img;
 }
@@ -239,11 +271,21 @@ function jumpFrameIndex(n, vy) {
   return 3;
 }
 
+function charScale(ch) {
+  const walk1 = charFrames[ch.id] && charFrames[ch.id].walk[0];
+  const m = walk1 && (walk1._meta || measureOpaque(walk1));
+  const ow = (m && m.ow) || ch.opaqueW || ch.refW || CHAR_DRAW_W;
+  const oh = (m && m.oh) || ch.opaqueH || ch.refH || CHAR_DRAW_H;
+  return Math.min(CHAR_DRAW_W / ow, CHAR_DRAW_H / oh);
+}
+
 function spriteDrawSize(ch, sprite) {
-  const refW = ch.refW || sprite.width || CHAR_DRAW_W;
-  const refH = ch.refH || sprite.height || CHAR_DRAW_H;
-  const scale = Math.min(CHAR_DRAW_W / refW, CHAR_DRAW_H / refH);
-  return { dw: sprite.width * scale, dh: sprite.height * scale };
+  const scale = charScale(ch);
+  const meta = sprite._meta || measureOpaque(sprite);
+  const dw = sprite.width * scale;
+  const dh = sprite.height * scale;
+  const foot = meta ? (meta.maxY + 1) * scale : dh;
+  return { dw, dh, foot, scale };
 }
 
 function currentPlayerSprite(ch) {
@@ -1240,17 +1282,41 @@ function activeChar() {
   return findCharacter(id);
 }
 
+function paintStaticThumb(canvas, ch) {
+  const img = charFrames[ch.id] && charFrames[ch.id].walk[0];
+  if (!img) return;
+  const draw = () => {
+    const meta = img._meta || measureOpaque(img);
+    const x = canvas.getContext("2d");
+    x.clearRect(0, 0, canvas.width, canvas.height);
+    if (!img.naturalWidth) return;
+    const sx = meta ? meta.minX : 0;
+    const sy = meta ? meta.minY : 0;
+    const sw = meta ? meta.ow : img.width;
+    const sh = meta ? meta.oh : img.height;
+    const scale = Math.min((canvas.width - 12) / sw, (canvas.height - 10) / sh);
+    const dw = sw * scale;
+    const dh = sh * scale;
+    x.imageSmoothingEnabled = true;
+    x.drawImage(img, sx, sy, sw, sh, (canvas.width - dw) / 2, canvas.height - dh - 4, dw, dh);
+  };
+  if (img.complete && img.naturalWidth) draw();
+  else img.addEventListener("load", draw, { once: true });
+}
+
 function renderCharGrid() {
   if (!charGrid) return;
   charGrid.innerHTML = CHARACTERS.map((ch) => {
     const on = (pendingCharId || selectedCharId) === ch.id ? " on" : "";
-    const src = encodeURI(charFrameUrl(ch.prefix, "walk", "right", 1));
     return `<button type="button" class="char-pick${on}" data-id="${ch.id}">
-      <img class="char-thumb" alt="${ch.name}" src="${src}" draggable="false" />
+      <canvas class="char-thumb" width="120" height="120" data-char="${ch.id}"></canvas>
       <span>${ch.name}</span>
     </button>`;
   }).join("");
   charGrid.querySelectorAll(".char-pick").forEach((btn) => {
+    const ch = findCharacter(btn.dataset.id);
+    const canvas = btn.querySelector(".char-thumb");
+    if (canvas) paintStaticThumb(canvas, ch);
     btn.addEventListener("click", () => {
       pendingCharId = btn.dataset.id;
       charGrid.querySelectorAll(".char-pick").forEach((b) => {
@@ -2048,10 +2114,12 @@ function drawPenguin() {
 
   let dw = penguin.w;
   let dh = penguin.h;
+  let foot = penguin.h;
   if (sprite) {
     const size = spriteDrawSize(ch, sprite);
     dw = size.dw;
     dh = size.dh;
+    foot = size.foot;
   }
 
   ctx.save();
@@ -2069,7 +2137,7 @@ function drawPenguin() {
   } else {
     ctx.rotate(tilt);
     if (sprite) {
-      ctx.drawImage(sprite, -dw / 2, -dh, dw, dh);
+      ctx.drawImage(sprite, -dw / 2, -foot, dw, dh);
     } else {
       ctx.fillStyle = "#1b2636";
       roundOval(-penguin.w / 2, -penguin.h, penguin.w, penguin.h);
