@@ -1214,7 +1214,7 @@ function paintRank(rows, note) {
   rankList.innerHTML =
     head +
     sorted
-      .slice(0, 10)
+      .slice(0, 20)
       .map((r, i) => {
         const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
         const me = r.nick === nickname ? " me" : "";
