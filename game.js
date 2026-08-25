@@ -180,12 +180,13 @@ loadSprite("hunter", "assets/hunter.png");
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
-  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refH: 264 },
-  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refH: 243 },
-  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refH: 251 },
-  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refH: 239 },
-  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refH: 179 },
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264 },
+  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243 },
+  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251 },
+  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239 },
+  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179 },
 ];
+const CHAR_DRAW_W = 72;
 const CHAR_DRAW_H = 84;
 const charFrames = {};
 const CHAR_IDS = CHARACTERS.map((c) => c.id);
@@ -236,6 +237,13 @@ function jumpFrameIndex(n, vy) {
   if (vy < -2) return 1;
   if (vy < 8) return 2;
   return 3;
+}
+
+function spriteDrawSize(ch, sprite) {
+  const refW = ch.refW || sprite.width || CHAR_DRAW_W;
+  const refH = ch.refH || sprite.height || CHAR_DRAW_H;
+  const scale = Math.min(CHAR_DRAW_W / refW, CHAR_DRAW_H / refH);
+  return { dw: sprite.width * scale, dh: sprite.height * scale };
 }
 
 function currentPlayerSprite(ch) {
@@ -1232,40 +1240,24 @@ function activeChar() {
   return findCharacter(id);
 }
 
-function paintCharThumbs() {
-  if (!charGrid) return;
-  document.querySelectorAll(".char-thumb").forEach((c) => {
-    const pack = charFrames[c.dataset.char];
-    const walks = readyFrames(pack && pack.walk);
-    const img = walks.length ? walks[Math.floor(frame / 7) % walks.length] : sprites.penguin;
-    const x = c.getContext("2d");
-    x.clearRect(0, 0, c.width, c.height);
-    if (!img) return;
-    const scale = Math.min((c.width - 8) / img.width, (c.height - 6) / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
-    x.imageSmoothingEnabled = true;
-    x.drawImage(img, (c.width - dw) / 2, c.height - dh - 2, dw, dh);
-  });
-}
-
 function renderCharGrid() {
   if (!charGrid) return;
   charGrid.innerHTML = CHARACTERS.map((ch) => {
     const on = (pendingCharId || selectedCharId) === ch.id ? " on" : "";
+    const src = encodeURI(charFrameUrl(ch.prefix, "walk", "right", 1));
     return `<button type="button" class="char-pick${on}" data-id="${ch.id}">
-      <canvas class="char-thumb" width="120" height="120" data-char="${ch.id}"></canvas>
+      <img class="char-thumb" alt="${ch.name}" src="${src}" draggable="false" />
       <span>${ch.name}</span>
     </button>`;
   }).join("");
   charGrid.querySelectorAll(".char-pick").forEach((btn) => {
     btn.addEventListener("click", () => {
       pendingCharId = btn.dataset.id;
-      renderCharGrid();
-      paintCharThumbs();
+      charGrid.querySelectorAll(".char-pick").forEach((b) => {
+        b.classList.toggle("on", b.dataset.id === pendingCharId);
+      });
     });
   });
-  paintCharThumbs();
 }
 
 function openCharScreen() {
@@ -2057,9 +2049,9 @@ function drawPenguin() {
   let dw = penguin.w;
   let dh = penguin.h;
   if (sprite) {
-    const scale = CHAR_DRAW_H / (ch.refH || sprite.height || CHAR_DRAW_H);
-    dw = sprite.width * scale;
-    dh = sprite.height * scale;
+    const size = spriteDrawSize(ch, sprite);
+    dw = size.dw;
+    dh = size.dh;
   }
 
   ctx.save();
@@ -2592,7 +2584,6 @@ function loop() {
     updateHitAnim();
     if (!running && !hitAnim) frame += 1;
   }
-  if (charOpen) paintCharThumbs();
   draw();
   requestAnimationFrame(loop);
 }

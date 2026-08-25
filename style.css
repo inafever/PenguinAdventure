@@ -366,8 +366,10 @@ body.night .shop-btn {
   display: block;
   width: 100%;
   max-width: 110px;
-  height: auto;
-  image-rendering: auto;
+  height: 96px;
+  object-fit: contain;
+  object-position: center bottom;
+  pointer-events: none;
 }
 
 body.night .char-pick {
