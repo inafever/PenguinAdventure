@@ -171,6 +171,7 @@ button:active {
 .theme-btn,
 .music-btn,
 .nick-btn,
+.char-btn,
 .fs-btn {
   flex-shrink: 0;
   padding: 10px 18px;
@@ -224,6 +225,16 @@ button:active {
 
 .nick-btn:active {
   box-shadow: 0 2px 0 #1f6a90;
+}
+
+.char-btn {
+  background: linear-gradient(180deg, #7ed0a8, #3fa06e);
+  box-shadow: 0 5px 0 #217848;
+  color: #fff;
+}
+
+.char-btn:active {
+  box-shadow: 0 2px 0 #217848;
 }
 
 .nick-cancel {
@@ -292,11 +303,13 @@ body.night .shop-btn {
 
 .shop-overlay,
 .nick-overlay,
-.rank-overlay {
+.rank-overlay,
+.char-overlay {
   z-index: 6;
 }
 
-.nick-overlay {
+.nick-overlay,
+.char-overlay {
   z-index: 8;
 }
 
@@ -309,6 +322,69 @@ body.night .shop-btn {
   width: min(460px, 92%);
   max-height: 90%;
   overflow-y: auto;
+}
+
+.char-card {
+  width: min(760px, 94%);
+  max-height: 92%;
+  overflow-y: auto;
+}
+
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.char-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 6px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 4px 0 #8ab4c8;
+  color: #12324a;
+  font-size: 0.95rem;
+}
+
+.char-pick:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #8ab4c8;
+}
+
+.char-pick.on {
+  background: #fff3c4;
+  outline: 3px solid #f0c36a;
+  box-shadow: 0 4px 0 #c9a040;
+}
+
+.char-thumb {
+  display: block;
+  width: 100%;
+  max-width: 110px;
+  height: auto;
+  image-rendering: auto;
+}
+
+body.night .char-pick {
+  background: rgba(20, 36, 70, 0.8);
+  color: #e8f3ff;
+  box-shadow: 0 4px 0 #1a3048;
+}
+
+body.night .char-pick.on {
+  background: #3a2e10;
+  outline-color: #f0c36a;
+}
+
+@media (max-width: 700px) {
+  .char-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .nick-field {

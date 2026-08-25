@@ -25,6 +25,7 @@
         </div>
         <div class="top-actions">
           <button id="nick-btn" class="nick-btn" type="button">닉네임</button>
+          <button id="char-btn" class="char-btn" type="button">캐릭터</button>
           <button id="rank-btn" class="rank-btn" type="button">🏆 랭킹</button>
           <button id="shop-btn" class="shop-btn" type="button">🏪 상점</button>
           <button id="music-btn" class="music-btn" type="button">🎵 음악 켬</button>
@@ -49,6 +50,7 @@
 
         <div id="stage-tools" class="stage-tools">
           <button id="t-nick" class="stage-tool" type="button" aria-label="닉네임">닉</button>
+          <button id="t-char" class="stage-tool" type="button" aria-label="캐릭터">🐧</button>
           <button id="t-rank" class="stage-tool" type="button" aria-label="랭킹">🏆</button>
           <button id="t-shop" class="stage-tool" type="button" aria-label="상점">🏪</button>
           <button id="t-music" class="stage-tool" type="button" aria-label="음악 켜기/끄기">🎵</button>
@@ -90,6 +92,17 @@
             <p id="nick-msg" class="shop-msg"></p>
             <button id="nick-save" type="button">이 이름으로 할래요</button>
             <button id="nick-close" class="nick-cancel hidden" type="button">닫기</button>
+          </div>
+        </div>
+
+        <div id="char" class="overlay char-overlay hidden">
+          <div class="card char-card">
+            <p class="kicker">주인공 고르기</p>
+            <h2>누구로 달릴까요?</h2>
+            <p>달리는 모습과 점프 동작이 친구마다 달라요.</p>
+            <div id="char-grid" class="char-grid"></div>
+            <button id="char-ok" type="button">이 친구로 할래요</button>
+            <button id="char-close" class="nick-cancel hidden" type="button">닫기</button>
           </div>
         </div>
 
