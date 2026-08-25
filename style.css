@@ -368,6 +368,8 @@ body.night .shop-btn {
   max-width: 110px;
   height: 96px;
   pointer-events: none;
+  background: rgba(170, 214, 236, 0.45);
+  border-radius: 12px;
 }
 
 body.night .char-pick {

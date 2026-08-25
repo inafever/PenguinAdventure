@@ -180,78 +180,97 @@ loadSprite("hunter", "assets/hunter.png");
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
-  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200 },
-  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206 },
-  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247 },
-  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206 },
-  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179, opaqueW: 235, opaqueH: 169 },
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16 },
+  { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206, footPad: 2 },
+  { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247, footPad: 2 },
+  { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206, footPad: 2 },
+  { id: "seal", name: "물범", prefix: "물범", walk: 8, jump: 2, slide: 2, refW: 246, refH: 179, opaqueW: 235, opaqueH: 169, footPad: 2 },
 ];
 const CHAR_DRAW_W = 72;
 const CHAR_DRAW_H = 84;
 const charFrames = {};
 const CHAR_IDS = CHARACTERS.map((c) => c.id);
+const charBgQueue = [];
+let charBgTimer = 0;
 
 function findCharacter(id) {
   return CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
-}
-
-function measureOpaque(img) {
-  if (img._meta) return img._meta;
-  if (!img.naturalWidth) return null;
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const x = c.getContext("2d");
-  x.drawImage(img, 0, 0);
-  const data = x.getImageData(0, 0, w, h).data;
-  let minX = w;
-  let minY = h;
-  let maxX = 0;
-  let maxY = 0;
-  for (let p = 0, i = 3; i < data.length; i += 4, p++) {
-    if (data[i] <= 12) continue;
-    const px = p % w;
-    const py = (p / w) | 0;
-    if (px < minX) minX = px;
-    if (py < minY) minY = py;
-    if (px > maxX) maxX = px;
-    if (py > maxY) maxY = py;
-  }
-  img._meta =
-    maxX < minX
-      ? { minX: 0, minY: 0, maxX: w - 1, maxY: h - 1, ow: w, oh: h }
-      : { minX, minY, maxX, maxY, ow: maxX - minX + 1, oh: maxY - minY + 1 };
-  return img._meta;
-}
-
-function loadCharImage(url) {
-  const img = new Image();
-  img.onload = () => measureOpaque(img);
-  img.src = encodeURI(url);
-  return img;
 }
 
 function charFrameUrl(prefix, action, dir, n) {
   return `assets/main-characters/${prefix}_${action}_${dir}_${n}.png`;
 }
 
+function makeCharImg(url) {
+  const img = new Image();
+  img.decoding = "async";
+  img._srcPath = url;
+  return img;
+}
+
+function ensureCharSrc(img, priority) {
+  if (!img || !img._srcPath) return;
+  if (priority === "high") img.fetchPriority = "high";
+  if (img._wanted) return;
+  img._wanted = true;
+  img.src = encodeURI(img._srcPath);
+}
+
+function eachCharFrame(ch, fn) {
+  const pack = charFrames[ch.id];
+  if (!pack) return;
+  pack.walk.forEach(fn);
+  pack.jump.forEach(fn);
+  pack.slide.forEach(fn);
+}
+
+function loadCharacterAnim(id, priority) {
+  const ch = findCharacter(id);
+  eachCharFrame(ch, (img) => ensureCharSrc(img, priority || "high"));
+}
+
+function pumpCharBgQueue() {
+  charBgTimer = 0;
+  let n = 0;
+  while (charBgQueue.length && n < 3) {
+    ensureCharSrc(charBgQueue.shift(), "low");
+    n += 1;
+  }
+  if (charBgQueue.length) charBgTimer = setTimeout(pumpCharBgQueue, 40);
+}
+
+function enqueueOtherCharacters(exceptId) {
+  CHARACTERS.forEach((ch) => {
+    if (ch.id === exceptId) return;
+    eachCharFrame(ch, (img) => {
+      if (!img._wanted) charBgQueue.push(img);
+    });
+  });
+  if (!charBgTimer && charBgQueue.length) pumpCharBgQueue();
+}
+
 CHARACTERS.forEach((ch) => {
   const pack = { walk: [], jump: [], slide: [] };
   for (let i = 1; i <= ch.walk; i++) {
-    pack.walk.push(loadCharImage(charFrameUrl(ch.prefix, "walk", "right", i)));
+    pack.walk.push(makeCharImg(charFrameUrl(ch.prefix, "walk", "right", i)));
   }
   for (let i = 1; i <= ch.jump; i++) {
-    pack.jump.push(loadCharImage(charFrameUrl(ch.prefix, "jump", "right", i)));
+    pack.jump.push(makeCharImg(charFrameUrl(ch.prefix, "jump", "right", i)));
   }
   if (ch.slide) {
     for (let i = 1; i <= ch.slide; i++) {
-      pack.slide.push(loadCharImage(charFrameUrl(ch.prefix, "slide", "right", i)));
+      pack.slide.push(makeCharImg(charFrameUrl(ch.prefix, "slide", "right", i)));
     }
   }
   charFrames[ch.id] = pack;
+  ensureCharSrc(pack.walk[0], "high");
 });
+
+function startCharacterLoading() {
+  const first = CHAR_IDS.includes(selectedCharId) ? selectedCharId : "penguin";
+  loadCharacterAnim(first, "high");
+  enqueueOtherCharacters(first);
+}
 
 function readyFrames(list) {
   return (list || []).filter((img) => img && img.complete && img.naturalWidth > 0);
@@ -272,20 +291,31 @@ function jumpFrameIndex(n, vy) {
 }
 
 function charScale(ch) {
-  const walk1 = charFrames[ch.id] && charFrames[ch.id].walk[0];
-  const m = walk1 && (walk1._meta || measureOpaque(walk1));
-  const ow = (m && m.ow) || ch.opaqueW || ch.refW || CHAR_DRAW_W;
-  const oh = (m && m.oh) || ch.opaqueH || ch.refH || CHAR_DRAW_H;
+  const ow = ch.opaqueW || ch.refW || CHAR_DRAW_W;
+  const oh = ch.opaqueH || ch.refH || CHAR_DRAW_H;
   return Math.min(CHAR_DRAW_W / ow, CHAR_DRAW_H / oh);
 }
 
 function spriteDrawSize(ch, sprite) {
   const scale = charScale(ch);
-  const meta = sprite._meta || measureOpaque(sprite);
   const dw = sprite.width * scale;
   const dh = sprite.height * scale;
-  const foot = meta ? (meta.maxY + 1) * scale : dh;
+  const foot = dh - (ch.footPad || 0) * scale;
   return { dw, dh, foot, scale };
+}
+
+function opaqueRect(ch, img) {
+  const ow = Math.min(ch.opaqueW || img.naturalWidth, img.naturalWidth);
+  const oh = Math.min(ch.opaqueH || img.naturalHeight, img.naturalHeight);
+  const padB = ch.footPad || 0;
+  const sy = Math.max(0, img.naturalHeight - padB - oh);
+  const sx = Math.max(0, Math.floor((img.naturalWidth - ow) / 2));
+  return {
+    sx,
+    sy,
+    sw: Math.min(ow, img.naturalWidth - sx),
+    sh: Math.min(oh, img.naturalHeight - sy),
+  };
 }
 
 function currentPlayerSprite(ch) {
@@ -306,8 +336,7 @@ function currentPlayerSprite(ch) {
     const step = running ? Math.max(4, Math.round(16 - speed)) : 7;
     const img = walks[Math.floor(frame / step) % walks.length];
     if (img && img.complete && img.naturalWidth > 0) return img;
-    const ready = readyFrames(walks);
-    if (ready.length) return ready[Math.floor(frame / step) % ready.length];
+    if (walks[0] && walks[0].complete && walks[0].naturalWidth > 0) return walks[0];
   }
   return sprites.penguin;
 }
@@ -399,6 +428,7 @@ let nickname = (localStorage.getItem("penguin-nick") || "").trim();
 const savedCharId = localStorage.getItem("penguin-char") || "";
 let selectedCharId = CHAR_IDS.includes(savedCharId) ? savedCharId : "";
 let pendingCharId = selectedCharId || "penguin";
+startCharacterLoading();
 let pendingHearts = Number(localStorage.getItem("penguin-hearts") || 0);
 let pendingTrail = false;
 let pendingGuard = 0;
@@ -1285,20 +1315,17 @@ function activeChar() {
 function paintStaticThumb(canvas, ch) {
   const img = charFrames[ch.id] && charFrames[ch.id].walk[0];
   if (!img) return;
+  ensureCharSrc(img, "high");
   const draw = () => {
-    const meta = img._meta || measureOpaque(img);
     const x = canvas.getContext("2d");
     x.clearRect(0, 0, canvas.width, canvas.height);
     if (!img.naturalWidth) return;
-    const sx = meta ? meta.minX : 0;
-    const sy = meta ? meta.minY : 0;
-    const sw = meta ? meta.ow : img.width;
-    const sh = meta ? meta.oh : img.height;
-    const scale = Math.min((canvas.width - 12) / sw, (canvas.height - 10) / sh);
-    const dw = sw * scale;
-    const dh = sh * scale;
+    const src = opaqueRect(ch, img);
+    const scale = Math.min((canvas.width - 12) / src.sw, (canvas.height - 10) / src.sh);
+    const dw = src.sw * scale;
+    const dh = src.sh * scale;
     x.imageSmoothingEnabled = true;
-    x.drawImage(img, sx, sy, sw, sh, (canvas.width - dw) / 2, canvas.height - dh - 4, dw, dh);
+    x.drawImage(img, src.sx, src.sy, src.sw, src.sh, (canvas.width - dw) / 2, canvas.height - dh - 4, dw, dh);
   };
   if (img.complete && img.naturalWidth) draw();
   else img.addEventListener("load", draw, { once: true });
@@ -1319,6 +1346,7 @@ function renderCharGrid() {
     if (canvas) paintStaticThumb(canvas, ch);
     btn.addEventListener("click", () => {
       pendingCharId = btn.dataset.id;
+      loadCharacterAnim(pendingCharId, "high");
       charGrid.querySelectorAll(".char-pick").forEach((b) => {
         b.classList.toggle("on", b.dataset.id === pendingCharId);
       });
@@ -1358,6 +1386,7 @@ function confirmCharacter() {
   selectedCharId = id;
   pendingCharId = id;
   localStorage.setItem("penguin-char", selectedCharId);
+  loadCharacterAnim(selectedCharId, "high");
   beep(760, 0.08);
   closeCharScreen();
 }
@@ -2096,7 +2125,7 @@ function drawPenguin() {
 
   const ch = activeChar();
   const sprite = currentPlayerSprite(ch);
-  const hasAnim = sprite && sprite !== sprites.penguin;
+  const hasAnim = !!(sprite && sprite !== sprites.penguin && sprite.naturalWidth);
   const waddling = !hasAnim && running && penguin.onGround && !shot && !eaten;
   const step = Math.sin(frame / 5.2);
   const waddleTilt = waddling ? step * 0.26 : 0;
@@ -2115,7 +2144,7 @@ function drawPenguin() {
   let dw = penguin.w;
   let dh = penguin.h;
   let foot = penguin.h;
-  if (sprite) {
+  if (hasAnim) {
     const size = spriteDrawSize(ch, sprite);
     dw = size.dw;
     dh = size.dh;
