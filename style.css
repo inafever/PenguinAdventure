@@ -338,7 +338,17 @@ body.night #nick-input {
 }
 
 .rank-hello {
-  margin: 0 0 12px !important;
+  margin: 0 0 8px !important;
+}
+
+.rank-cap {
+  margin: 0 0 10px !important;
+  font-size: 0.95rem;
+  color: #3a6a88;
+}
+
+body.night .rank-cap {
+  color: #b7d4ef;
 }
 
 .rank-tabs {
@@ -364,9 +374,11 @@ body.night #nick-input {
 
 .rank-list {
   margin: 0 0 16px;
-  padding: 0;
+  padding: 0 4px 2px 0;
   list-style: none;
   text-align: left;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
 }
 
 .rank-list li {
