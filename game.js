@@ -1424,6 +1424,7 @@ function submitScoreOnline() {
   try {
     // 점수 쓰기는 서버 함수(submit_score, SECURITY DEFINER)로만.
     // 테이블 직접 INSERT 는 RLS로 막고, 범위 검사 후에만 저장된다.
+    // 주의: 실제 상한은 Supabase 함수에 있음. 예전 함수는 100000에서 거절한다.
     fetch(`${cfg.url}/rest/v1/rpc/submit_score`, {
       method: "POST",
       headers: {
@@ -1432,9 +1433,13 @@ function submitScoreOnline() {
         Authorization: `Bearer ${cfg.anonKey}`,
       },
       body: JSON.stringify(payload),
-    }).catch((err) => {
-      console.warn("점수 제출 실패", err);
-    });
+    })
+      .then((r) => {
+        if (!r.ok) console.warn("점수 제출 실패", r.status);
+      })
+      .catch((err) => {
+        console.warn("점수 제출 실패", err);
+      });
   } catch (e) {
     console.warn("점수 제출 실패", e);
   }
