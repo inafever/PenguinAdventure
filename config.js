@@ -38,10 +38,10 @@
 //     if char_length(n) < 1 or char_length(n) > 10 then
 //       raise exception 'invalid nick';
 //     end if;
-//     if p_score is null or p_score < 0 or p_score > 100000 then
+//     if p_score is null or p_score < 0 or p_score > 99999999 then
 //       raise exception 'invalid score';
 //     end if;
-//     if p_coins is null or p_coins < 0 or p_coins > 100000 then
+//     if p_coins is null or p_coins < 0 or p_coins > 99999999 then
 //       raise exception 'invalid coins';
 //     end if;
 //     insert into public.scores (nick, score, coins) values (n, p_score, p_coins);
@@ -51,6 +51,33 @@
 //
 //   revoke all on function public.submit_score(text, int, int) from public;
 //   grant execute on function public.submit_score(text, int, int) to anon, authenticated;
+//
+// 이미 submit_score 를 만들어 두었다면, 10만점 초과가 거절되지 않게
+// SQL Editor에서 아래만 다시 실행하세요.
+//
+//   create or replace function submit_score(p_nick text, p_score int, p_coins int)
+//   returns json
+//   language plpgsql
+//   security definer
+//   set search_path = public
+//   as $$
+//   declare
+//     n text;
+//   begin
+//     n := trim(both from coalesce(p_nick, ''));
+//     if char_length(n) < 1 or char_length(n) > 10 then
+//       raise exception 'invalid nick';
+//     end if;
+//     if p_score is null or p_score < 0 or p_score > 99999999 then
+//       raise exception 'invalid score';
+//     end if;
+//     if p_coins is null or p_coins < 0 or p_coins > 99999999 then
+//       raise exception 'invalid coins';
+//     end if;
+//     insert into public.scores (nick, score, coins) values (n, p_score, p_coins);
+//     return json_build_object('ok', true);
+//   end;
+//   $$;
 //
 window.PENGUIN_SUPABASE = {
   url: "https://yahktwaabetayemhjech.supabase.co",

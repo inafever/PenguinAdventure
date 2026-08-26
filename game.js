@@ -1440,14 +1440,36 @@ function submitScoreOnline() {
   }
 }
 
+const RANK_SHOW = 30;
+const RANK_PAGE = 200;
+const RANK_MAX_PAGES = 10;
+
+function rankHeaders(cfg) {
+  return { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` };
+}
+
 function fetchOnlineRanks() {
   const cfg = supabaseCfg();
   if (!cfg) return Promise.resolve(null);
   const col = rankMode === "coin" ? "coins" : "score";
-  const url = `${cfg.url}/rest/v1/scores?select=nick,score,coins&order=${col}.desc&limit=200`;
-  return fetch(url, {
-    headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
-  }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+  const gathered = [];
+
+  function pageAt(i) {
+    const url = `${cfg.url}/rest/v1/scores?select=nick,score,coins&order=${col}.desc&limit=${RANK_PAGE}&offset=${i * RANK_PAGE}`;
+    return fetch(url, { headers: rankHeaders(cfg) }).then((r) =>
+      r.ok ? r.json() : Promise.reject(r.status)
+    ).then((rows) => {
+      const list = rows || [];
+      gathered.push.apply(gathered, list);
+      const uniqueCount = dedupeByNick(gathered).length;
+      if (list.length < RANK_PAGE || uniqueCount >= RANK_SHOW || i + 1 >= RANK_MAX_PAGES) {
+        return gathered;
+      }
+      return pageAt(i + 1);
+    });
+  }
+
+  return pageAt(0);
 }
 
 function normalizeLocalRanks() {
@@ -1488,7 +1510,7 @@ function paintRank(rows, note) {
   rankList.innerHTML =
     head +
     sorted
-      .slice(0, 20)
+      .slice(0, RANK_SHOW)
       .map((r, i) => {
         const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
         const me = r.nick === nickname ? " me" : "";
