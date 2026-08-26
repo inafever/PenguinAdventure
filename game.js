@@ -1254,10 +1254,9 @@ function updateNickLabel() {
 
 function greetOverlay() {
   if (!nickname || running) return;
-  const ch = findCharacter(selectedCharId || pendingCharId);
   if (overlayKicker) {
     const heartsNow = pendingHearts + shield;
-    const who = `안녕, ${nickname}! · ${ch.name}`;
+    const who = `안녕, ${nickname}!`;
     overlayKicker.textContent = heartsNow > 0 ? `${who} · 보유 하트 ${heartsNow}개` : who;
   }
 }
