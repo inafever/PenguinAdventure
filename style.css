@@ -169,6 +169,7 @@ button:active {
 .shop-btn,
 .rank-btn,
 .theme-btn,
+.music-btn,
 .nick-btn,
 .char-btn,
 .fs-btn {
@@ -184,6 +185,20 @@ button:active {
 
 .fs-btn:active {
   box-shadow: 0 2px 0 #1a6a48;
+}
+
+.music-btn {
+  background: linear-gradient(180deg, #b07ce0, #8a4ec0);
+  box-shadow: 0 5px 0 #6a2ea0;
+}
+
+.music-btn:active {
+  box-shadow: 0 2px 0 #6a2ea0;
+}
+
+.music-btn.off {
+  background: linear-gradient(180deg, #9aa4b0, #6a7480);
+  box-shadow: 0 5px 0 #4a5460;
 }
 
 .nick-label {
