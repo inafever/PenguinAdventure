@@ -1563,6 +1563,7 @@ function openRank() {
   charOpen = false;
   if (charEl) charEl.classList.add("hidden");
   saveMyRank();
+  submitScoreOnline();
   if (rankEl) rankEl.classList.remove("hidden");
   overlay.classList.add("hidden");
   if (shopEl) shopEl.classList.add("hidden");
