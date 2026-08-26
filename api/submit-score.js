@@ -10,8 +10,8 @@
 //   - SUPABASE_SERVICE_ROLE_KEY   : Supabase > Project Settings > API > service_role (secret)
 //     ※ service_role 키는 절대 저장소/클라이언트에 커밋하지 말 것.
 
-const MAX_SCORE = 100000;
-const MAX_COINS = 100000;
+const MAX_SCORE = 99999999;
+const MAX_COINS = 99999999;
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");

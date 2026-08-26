@@ -455,19 +455,24 @@ body.night .rank-cap {
   padding: 0 4px 2px 0;
   list-style: none;
   text-align: left;
-  max-height: min(52vh, 420px);
+  max-height: min(60vh, 560px);
   overflow-y: auto;
 }
 
 .rank-list li {
   display: grid;
-  grid-template-columns: 42px 1fr auto;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   margin: 0 0 8px;
   padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.7);
+}
+
+.rank-list li strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .rank-list li.me {
