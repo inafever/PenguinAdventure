@@ -1219,7 +1219,7 @@ function loadRanks() {
 }
 
 function saveRanks(ranks) {
-  localStorage.setItem("penguin-ranks", JSON.stringify(ranks.slice(0, 30)));
+  localStorage.setItem("penguin-ranks", JSON.stringify(ranks));
 }
 
 function saveMyRank() {
@@ -1440,9 +1440,8 @@ function submitScoreOnline() {
   }
 }
 
-const RANK_SHOW = 30;
 const RANK_PAGE = 200;
-const RANK_MAX_PAGES = 10;
+const RANK_MAX_PAGES = 100;
 
 function rankHeaders(cfg) {
   return { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` };
@@ -1461,8 +1460,7 @@ function fetchOnlineRanks() {
     ).then((rows) => {
       const list = rows || [];
       gathered.push.apply(gathered, list);
-      const uniqueCount = dedupeByNick(gathered).length;
-      if (list.length < RANK_PAGE || uniqueCount >= RANK_SHOW || i + 1 >= RANK_MAX_PAGES) {
+      if (list.length < RANK_PAGE || i + 1 >= RANK_MAX_PAGES) {
         return gathered;
       }
       return pageAt(i + 1);
@@ -1510,7 +1508,6 @@ function paintRank(rows, note) {
   rankList.innerHTML =
     head +
     sorted
-      .slice(0, RANK_SHOW)
       .map((r, i) => {
         const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
         const me = r.nick === nickname ? " me" : "";
