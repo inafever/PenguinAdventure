@@ -635,7 +635,10 @@ function applyTheme() {
   const t = themeColors();
   document.body.classList.toggle("night", isNight);
   document.body.dataset.stage = String(currentStage().id);
-  nightBtn.textContent = isNight ? "☀️ 낮으로 바꾸기" : "🌙 밤으로 바꾸기";
+  const themeLabel = isNight ? "밤" : "낮";
+  nightBtn.textContent = themeLabel;
+  const tNightBtn = document.getElementById("t-night");
+  if (tNightBtn) tNightBtn.textContent = themeLabel;
   canvas.style.background = t.canvas;
 }
 
@@ -668,7 +671,7 @@ function jump() {
 let audioCtx = null;
 let musicGain = null;
 let musicNodes = [];
-let musicOn = localStorage.getItem("penguin-music") !== "0";
+let musicOn = true;
 let musicPlaying = false;
 let musicNextTime = 0;
 let musicNote = 0;
@@ -2767,29 +2770,6 @@ nightBtn.addEventListener("click", () => {
   applyTheme();
 });
 
-// ---- 음악 켜기/끄기 ----
-const musicBtn = document.getElementById("music-btn");
-function updateMusicUi() {
-  if (musicBtn) {
-    musicBtn.textContent = musicOn ? "🎵 음악 켬" : "🔇 음악 끔";
-    musicBtn.classList.toggle("off", !musicOn);
-  }
-  const tm = document.getElementById("t-music");
-  if (tm) tm.textContent = musicOn ? "🎵" : "🔇";
-}
-function toggleMusic() {
-  musicOn = !musicOn;
-  localStorage.setItem("penguin-music", musicOn ? "1" : "0");
-  if (musicOn) {
-    if (running) startMusic();
-  } else {
-    stopMusic();
-  }
-  updateMusicUi();
-}
-if (musicBtn) musicBtn.addEventListener("click", toggleMusic);
-updateMusicUi();
-
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "ArrowUp") {
     if (nickOpen || charOpen) return;
@@ -2807,7 +2787,6 @@ const stageBox = document.querySelector(".stage");
 const tRank = document.getElementById("t-rank");
 const tShop = document.getElementById("t-shop");
 const tNight = document.getElementById("t-night");
-const tMusic = document.getElementById("t-music");
 const tFs = document.getElementById("t-fs");
 const tNick = document.getElementById("t-nick");
 const tChar = document.getElementById("t-char");
@@ -2899,7 +2878,6 @@ if (tFs) tFs.addEventListener("click", toggleFs);
 if (tRank) tRank.addEventListener("click", () => rankBtn && rankBtn.click());
 if (tShop) tShop.addEventListener("click", () => shopBtn && shopBtn.click());
 if (tNight) tNight.addEventListener("click", () => nightBtn && nightBtn.click());
-if (tMusic) tMusic.addEventListener("click", toggleMusic);
 if (tNick) tNick.addEventListener("click", openNickScreen);
 if (tChar) tChar.addEventListener("click", openCharScreen);
 document.addEventListener("fullscreenchange", syncFsUi);
