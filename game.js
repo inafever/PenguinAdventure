@@ -180,7 +180,7 @@ loadSprite("hunter", "assets/hunter.png");
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
-  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16 },
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16, lockFrame: true },
   { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206, footPad: 2 },
   { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247, footPad: 2 },
   { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206, footPad: 2 },
@@ -296,15 +296,72 @@ function charScale(ch) {
   return Math.min(CHAR_DRAW_W / ow, CHAR_DRAW_H / oh);
 }
 
+// 프레임마다 실제 그려진(불투명) 영역을 재서 캐시한다. 파일 여백은 빼 둔다.
+function measureOpaqueBox(img) {
+  if (img._opaqueBox) return img._opaqueBox;
+  if (!img.complete || !img.naturalWidth) return null;
+  try {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, w, h).data;
+    let minX = w;
+    let minY = h;
+    let maxX = 0;
+    let maxY = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] <= 12) continue;
+      const p = (i / 4) | 0;
+      const px = p % w;
+      const py = (p / w) | 0;
+      if (px < minX) minX = px;
+      if (py < minY) minY = py;
+      if (px > maxX) maxX = px;
+      if (py > maxY) maxY = py;
+    }
+    img._opaqueBox =
+      maxX < minX
+        ? { sx: 0, sy: 0, sw: w, sh: h }
+        : { sx: minX, sy: minY, sw: maxX - minX + 1, sh: maxY - minY + 1 };
+  } catch (e) {
+    img._opaqueBox = { sx: 0, sy: 0, sw: img.naturalWidth, sh: img.naturalHeight };
+  }
+  return img._opaqueBox;
+}
+
 function spriteDrawSize(ch, sprite) {
-  const scale = charScale(ch);
-  const dw = sprite.width * scale;
-  const dh = sprite.height * scale;
-  const foot = dh - (ch.footPad || 0) * scale;
-  return { dw, dh, foot, scale };
+  const iw = sprite.naturalWidth || sprite.width;
+  const ih = sprite.naturalHeight || sprite.height;
+  // 펭귄처럼 모든 프레임 캔버스가 같으면 그대로 그려 발 위치가 안 흔들린다.
+  const locked = !!(ch.lockFrame && ch.refW && ch.refH && iw === ch.refW && ih === ch.refH);
+  if (locked) {
+    const scale = charScale(ch);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    return { dw, dh, foot: dh - (ch.footPad || 0) * scale, scale, sx: 0, sy: 0, sw: iw, sh: ih };
+  }
+  const box = measureOpaqueBox(sprite) || { sx: 0, sy: 0, sw: iw, sh: ih };
+  const scale = Math.min(CHAR_DRAW_W / box.sw, CHAR_DRAW_H / box.sh);
+  const dw = box.sw * scale;
+  const dh = box.sh * scale;
+  return { dw, dh, foot: dh, scale, sx: box.sx, sy: box.sy, sw: box.sw, sh: box.sh };
+}
+
+function drawPlayerSprite(sprite, src, dx, dy, dw, dh) {
+  if (src && src.sw > 0 && src.sh > 0) {
+    ctx.drawImage(sprite, src.sx, src.sy, src.sw, src.sh, dx, dy, dw, dh);
+    return;
+  }
+  ctx.drawImage(sprite, dx, dy, dw, dh);
 }
 
 function opaqueRect(ch, img) {
+  const box = measureOpaqueBox(img);
+  if (box) return box;
   const ow = Math.min(ch.opaqueW || img.naturalWidth, img.naturalWidth);
   const oh = Math.min(ch.opaqueH || img.naturalHeight, img.naturalHeight);
   const padB = ch.footPad || 0;
@@ -2165,11 +2222,12 @@ function drawPenguin() {
   let dw = penguin.w;
   let dh = penguin.h;
   let foot = penguin.h;
+  let src = null;
   if (hasAnim) {
-    const size = spriteDrawSize(ch, sprite);
-    dw = size.dw;
-    dh = size.dh;
-    foot = size.foot;
+    src = spriteDrawSize(ch, sprite);
+    dw = src.dw;
+    dh = src.dh;
+    foot = src.foot;
   }
 
   ctx.save();
@@ -2182,12 +2240,12 @@ function drawPenguin() {
     ctx.scale(1 - eatP * 0.9, 1 - eatP * 0.9);
     ctx.rotate(tilt);
     if (sprite) {
-      ctx.drawImage(sprite, -dw / 2, -dh / 2, dw, dh);
+      drawPlayerSprite(sprite, src, -dw / 2, -dh / 2, dw, dh);
     }
   } else {
     ctx.rotate(tilt);
     if (sprite) {
-      ctx.drawImage(sprite, -dw / 2, -foot, dw, dh);
+      drawPlayerSprite(sprite, src, -dw / 2, -foot, dw, dh);
     } else {
       ctx.fillStyle = "#1b2636";
       roundOval(-penguin.w / 2, -penguin.h, penguin.w, penguin.h);
