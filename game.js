@@ -1984,7 +1984,16 @@ function gameOver(type = "bump", eaterKind = "bear") {
   } else {
     overlayText.textContent = `${currentStage().id}단계 ${currentStage().name}까지 왔어요. 다시 도전해서 더 멀리 달려 보세요.`;
   }
-  overlayScore.textContent = `점수 ${score} · 이번 코인 ${runCoins} · 총 코인 ${coinCount} · 물고기 ${fishCount}마리 · 최고 ${best} · 다음 판 하트 ${pendingHearts}개`;
+  overlayScore.innerHTML = [
+    ["점수", String(score)],
+    ["이번 코인", String(runCoins)],
+    ["총 코인", String(coinCount)],
+    ["물고기", `${fishCount}마리`],
+    ["최고점수", String(best)],
+    ["다음 판 하트", `${pendingHearts}개`],
+  ]
+    .map(([label, value]) => `<div class="result-stat"><span>${label}</span><strong>${value}</strong></div>`)
+    .join("");
   overlayScore.classList.remove("hidden");
   startBtn.textContent = "다시 하기";
   overlay.classList.remove("hidden");
