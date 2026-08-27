@@ -681,6 +681,10 @@ body.night .kicker {
   box-shadow: none;
 }
 
+#t-night {
+  font-size: 1rem;
+}
+
 .stage-tool:active {
   transform: none;
   box-shadow: none;

@@ -180,7 +180,7 @@ loadSprite("hunter", "assets/hunter.png");
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
-  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16 },
+  { id: "penguin", name: "펭귄", prefix: "펭귄", walk: 8, jump: 4, refW: 188, refH: 264, opaqueW: 156, opaqueH: 200, footPad: 16, lockFrame: true },
   { id: "bear", name: "북극곰", prefix: "북극곰", walk: 8, jump: 4, refW: 238, refH: 243, opaqueW: 224, opaqueH: 206, footPad: 2 },
   { id: "rabbit", name: "토끼", prefix: "토끼", walk: 8, jump: 4, refW: 164, refH: 251, opaqueW: 149, opaqueH: 247, footPad: 2 },
   { id: "fox", name: "여우", prefix: "여우", walk: 10, jump: 3, refW: 225, refH: 239, opaqueW: 200, opaqueH: 206, footPad: 2 },
@@ -296,15 +296,72 @@ function charScale(ch) {
   return Math.min(CHAR_DRAW_W / ow, CHAR_DRAW_H / oh);
 }
 
+// 프레임마다 실제 그려진(불투명) 영역을 재서 캐시한다. 파일 여백은 빼 둔다.
+function measureOpaqueBox(img) {
+  if (img._opaqueBox) return img._opaqueBox;
+  if (!img.complete || !img.naturalWidth) return null;
+  try {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, w, h).data;
+    let minX = w;
+    let minY = h;
+    let maxX = 0;
+    let maxY = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] <= 12) continue;
+      const p = (i / 4) | 0;
+      const px = p % w;
+      const py = (p / w) | 0;
+      if (px < minX) minX = px;
+      if (py < minY) minY = py;
+      if (px > maxX) maxX = px;
+      if (py > maxY) maxY = py;
+    }
+    img._opaqueBox =
+      maxX < minX
+        ? { sx: 0, sy: 0, sw: w, sh: h }
+        : { sx: minX, sy: minY, sw: maxX - minX + 1, sh: maxY - minY + 1 };
+  } catch (e) {
+    img._opaqueBox = { sx: 0, sy: 0, sw: img.naturalWidth, sh: img.naturalHeight };
+  }
+  return img._opaqueBox;
+}
+
 function spriteDrawSize(ch, sprite) {
-  const scale = charScale(ch);
-  const dw = sprite.width * scale;
-  const dh = sprite.height * scale;
-  const foot = dh - (ch.footPad || 0) * scale;
-  return { dw, dh, foot, scale };
+  const iw = sprite.naturalWidth || sprite.width;
+  const ih = sprite.naturalHeight || sprite.height;
+  // 펭귄처럼 모든 프레임 캔버스가 같으면 그대로 그려 발 위치가 안 흔들린다.
+  const locked = !!(ch.lockFrame && ch.refW && ch.refH && iw === ch.refW && ih === ch.refH);
+  if (locked) {
+    const scale = charScale(ch);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    return { dw, dh, foot: dh - (ch.footPad || 0) * scale, scale, sx: 0, sy: 0, sw: iw, sh: ih };
+  }
+  const box = measureOpaqueBox(sprite) || { sx: 0, sy: 0, sw: iw, sh: ih };
+  const scale = Math.min(CHAR_DRAW_W / box.sw, CHAR_DRAW_H / box.sh);
+  const dw = box.sw * scale;
+  const dh = box.sh * scale;
+  return { dw, dh, foot: dh, scale, sx: box.sx, sy: box.sy, sw: box.sw, sh: box.sh };
+}
+
+function drawPlayerSprite(sprite, src, dx, dy, dw, dh) {
+  if (src && src.sw > 0 && src.sh > 0) {
+    ctx.drawImage(sprite, src.sx, src.sy, src.sw, src.sh, dx, dy, dw, dh);
+    return;
+  }
+  ctx.drawImage(sprite, dx, dy, dw, dh);
 }
 
 function opaqueRect(ch, img) {
+  const box = measureOpaqueBox(img);
+  if (box) return box;
   const ow = Math.min(ch.opaqueW || img.naturalWidth, img.naturalWidth);
   const oh = Math.min(ch.opaqueH || img.naturalHeight, img.naturalHeight);
   const padB = ch.footPad || 0;
@@ -447,6 +504,12 @@ let trail = [];
 let rewardTimer = 50;
 let popTexts = [];
 let isNight = localStorage.getItem("penguin-night") === "1";
+let playNow = 0;
+let playClockLast = 0;
+let stage5CycleAt = 0;
+let themeBanner = 0;
+let themeBannerText = "";
+const STAGE5_DAYNIGHT_MS = 60000;
 
 bestEl.textContent = best;
 
@@ -486,6 +549,11 @@ function resetGame() {
   hurtFlash = 0;
   trail = [];
   hitAnim = null;
+  playNow = 0;
+  playClockLast = performance.now();
+  stage5CycleAt = 0;
+  themeBanner = 0;
+  themeBannerText = "";
   speed = currentStage().baseSpeed;
   obstacles = [];
   fishes = [];
@@ -635,12 +703,23 @@ function applyTheme() {
   const t = themeColors();
   document.body.classList.toggle("night", isNight);
   document.body.dataset.stage = String(currentStage().id);
-  nightBtn.textContent = isNight ? "☀️ 낮으로 바꾸기" : "🌙 밤으로 바꾸기";
+  const themeLabel = isNight ? "낮" : "밤";
+  nightBtn.textContent = themeLabel;
+  const tNightBtn = document.getElementById("t-night");
+  if (tNightBtn) tNightBtn.textContent = themeLabel;
   canvas.style.background = t.canvas;
 }
 
+function isUiOpen() {
+  return shopOpen || nickOpen || rankOpen || charOpen || rotateOpen;
+}
+
+function isPlayPaused() {
+  return isUiOpen() || document.hidden;
+}
+
 function jump() {
-  if (shopOpen || nickOpen || rankOpen || charOpen || hitAnim) return;
+  if (isUiOpen() || hitAnim) return;
   if (!nickname) {
     openNickScreen();
     return;
@@ -1002,11 +1081,12 @@ function hitBox(a, b, pad = 10) {
 }
 
 function update() {
-  if (!running) return;
+  if (!running || isPlayPaused()) return;
 
   const stage = currentStage();
   frame += 1;
   if (stageBanner > 0) stageBanner -= 1;
+  if (themeBanner > 0) themeBanner -= 1;
   if (invincible > 0) invincible -= 1;
   if (hurtFlash > 0) hurtFlash -= 1;
   if (mushroomTime > 0) {
@@ -1050,6 +1130,7 @@ function update() {
   distance += speed;
   score = Math.floor(distance / 8) + fishCount * 50 + runCoins * 10;
   checkStageUp();
+  maybeCycleDayNight();
 
   penguin.vy += GRAVITY;
   penguin.y += penguin.vy;
@@ -1195,9 +1276,30 @@ function checkStageUp() {
     makeHills();
     makeSnow();
     applyTheme();
+    if (currentStage().id === 5) stage5CycleAt = playNow;
     beep(700, 0.12);
     updateHud();
   }
+}
+
+function setNight(next, fromPlayer) {
+  if (isNight === next) return;
+  isNight = next;
+  localStorage.setItem("penguin-night", isNight ? "1" : "0");
+  applyTheme();
+  if (running && currentStage().id >= 5) stage5CycleAt = playNow;
+  if (!fromPlayer && running && currentStage().id >= 5) {
+    themeBanner = 90;
+    themeBannerText = isNight ? "밤이 되었어요" : "낮이 되었어요";
+    beep(480, 0.1);
+  }
+}
+
+function maybeCycleDayNight() {
+  if (!running || currentStage().id < 5) return;
+  if (!stage5CycleAt) stage5CycleAt = playNow;
+  if (playNow - stage5CycleAt < STAGE5_DAYNIGHT_MS) return;
+  setNight(!isNight, false);
 }
 
 function saveCoins() {
@@ -1219,7 +1321,7 @@ function loadRanks() {
 }
 
 function saveRanks(ranks) {
-  localStorage.setItem("penguin-ranks", JSON.stringify(ranks.slice(0, 30)));
+  localStorage.setItem("penguin-ranks", JSON.stringify(ranks));
 }
 
 function saveMyRank() {
@@ -1251,10 +1353,9 @@ function updateNickLabel() {
 
 function greetOverlay() {
   if (!nickname || running) return;
-  const ch = findCharacter(selectedCharId || pendingCharId);
   if (overlayKicker) {
     const heartsNow = pendingHearts + shield;
-    const who = `안녕, ${nickname}! · ${ch.name}`;
+    const who = `안녕, ${nickname}!`;
     overlayKicker.textContent = heartsNow > 0 ? `${who} · 보유 하트 ${heartsNow}개` : who;
   }
 }
@@ -1440,9 +1541,8 @@ function submitScoreOnline() {
   }
 }
 
-const RANK_SHOW = 30;
 const RANK_PAGE = 200;
-const RANK_MAX_PAGES = 10;
+const RANK_MAX_PAGES = 100;
 
 function rankHeaders(cfg) {
   return { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` };
@@ -1461,8 +1561,7 @@ function fetchOnlineRanks() {
     ).then((rows) => {
       const list = rows || [];
       gathered.push.apply(gathered, list);
-      const uniqueCount = dedupeByNick(gathered).length;
-      if (list.length < RANK_PAGE || uniqueCount >= RANK_SHOW || i + 1 >= RANK_MAX_PAGES) {
+      if (list.length < RANK_PAGE || i + 1 >= RANK_MAX_PAGES) {
         return gathered;
       }
       return pageAt(i + 1);
@@ -1510,7 +1609,6 @@ function paintRank(rows, note) {
   rankList.innerHTML =
     head +
     sorted
-      .slice(0, RANK_SHOW)
       .map((r, i) => {
         const value = rankMode === "coin" ? `${r.coins}코인` : `${r.score}점`;
         const me = r.nick === nickname ? " me" : "";
@@ -2166,11 +2264,12 @@ function drawPenguin() {
   let dw = penguin.w;
   let dh = penguin.h;
   let foot = penguin.h;
+  let src = null;
   if (hasAnim) {
-    const size = spriteDrawSize(ch, sprite);
-    dw = size.dw;
-    dh = size.dh;
-    foot = size.foot;
+    src = spriteDrawSize(ch, sprite);
+    dw = src.dw;
+    dh = src.dh;
+    foot = src.foot;
   }
 
   ctx.save();
@@ -2183,12 +2282,12 @@ function drawPenguin() {
     ctx.scale(1 - eatP * 0.9, 1 - eatP * 0.9);
     ctx.rotate(tilt);
     if (sprite) {
-      ctx.drawImage(sprite, -dw / 2, -dh / 2, dw, dh);
+      drawPlayerSprite(sprite, src, -dw / 2, -dh / 2, dw, dh);
     }
   } else {
     ctx.rotate(tilt);
     if (sprite) {
-      ctx.drawImage(sprite, -dw / 2, -foot, dw, dh);
+      drawPlayerSprite(sprite, src, -dw / 2, -foot, dw, dh);
     } else {
       ctx.fillStyle = "#1b2636";
       roundOval(-penguin.w / 2, -penguin.h, penguin.w, penguin.h);
@@ -2661,7 +2760,7 @@ function drawEatEffect() {
 }
 
 function drawStageHud() {
-  if (!running && stageBanner <= 0) return;
+  if (!running && stageBanner <= 0 && themeBanner <= 0) return;
 
   const stage = currentStage();
   ctx.fillStyle = isNight ? "rgba(230,245,255,0.85)" : "rgba(20,50,80,0.55)";
@@ -2695,14 +2794,31 @@ function drawStageHud() {
     ctx.fillText(stage.name, canvas.width / 2, 234);
     ctx.textAlign = "left";
   }
+
+  if (themeBanner > 0 && running) {
+    const alpha = Math.min(1, themeBanner / 18);
+    ctx.fillStyle = `rgba(12, 36, 64, ${0.5 * alpha})`;
+    roundRect(canvas.width / 2 - 160, 86, 320, 52, 18);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.textAlign = "center";
+    ctx.font = "24px Jua, Malgun Gothic, sans-serif";
+    ctx.fillText(themeBannerText, canvas.width / 2, 120);
+    ctx.textAlign = "left";
+  }
 }
 
 function loop() {
-  if (running && !shopOpen && !rankOpen && !nickOpen && !charOpen && !rotateOpen) update();
-  else {
+  const now = performance.now();
+  if (running && !isPlayPaused()) {
+    const dt = Math.min(50, now - (playClockLast || now));
+    playNow += dt;
+    update();
+  } else {
     updateHitAnim();
     if (!running && !hitAnim) frame += 1;
   }
+  playClockLast = now;
   draw();
   requestAnimationFrame(loop);
 }
@@ -2762,12 +2878,9 @@ document.querySelectorAll(".shop-item").forEach((btn) => {
   btn.addEventListener("click", () => buyShopItem(btn.dataset.item));
 });
 nightBtn.addEventListener("click", () => {
-  isNight = !isNight;
-  localStorage.setItem("penguin-night", isNight ? "1" : "0");
-  applyTheme();
+  setNight(!isNight, true);
 });
 
-// ---- 음악 켜기/끄기 ----
 const musicBtn = document.getElementById("music-btn");
 function updateMusicUi() {
   if (musicBtn) {
