@@ -510,6 +510,16 @@ let stage5CycleAt = 0;
 let themeBanner = 0;
 let themeBannerText = "";
 const STAGE5_DAYNIGHT_MS = 60000;
+const PLANE_INTERVAL_MS = 10000;
+const PLANE_FLIGHT_MS = 9000;
+const PLANE_H = 72;
+const PLANE_W = 108;
+const PLANE_TOW = 16;
+const PLANE_BANNER_H = 24;
+let skyPlane = null;
+let lastPlaneAt = 0;
+let bannerLines = [];
+let lastBannerText = "";
 
 bestEl.textContent = best;
 
@@ -554,6 +564,8 @@ function resetGame() {
   stage5CycleAt = 0;
   themeBanner = 0;
   themeBannerText = "";
+  skyPlane = null;
+  lastPlaneAt = 0;
   speed = currentStage().baseSpeed;
   obstacles = [];
   fishes = [];
@@ -1131,6 +1143,7 @@ function update() {
   score = Math.floor(distance / 8) + fishCount * 50 + runCoins * 10;
   checkStageUp();
   maybeCycleDayNight();
+  updateSkyPlane();
 
   penguin.vy += GRAVITY;
   penguin.y += penguin.vy;
@@ -1997,6 +2010,7 @@ function gameOver(type = "bump", eaterKind = "bear") {
   overlayScore.classList.remove("hidden");
   startBtn.textContent = "다시 하기";
   overlay.classList.remove("hidden");
+  skyPlane = null;
   stopMusic();
   updateHud();
 }
@@ -2056,6 +2070,8 @@ function drawBackground() {
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.restore();
+
+  drawSkyPlane();
 
   // 먼 산맥 (패럴랙스: 뒤 레이어는 느리게 흐름)
   drawFarMountains(t);
@@ -2145,6 +2161,189 @@ function drawClouds() {
     cx = ((cx % span) + span) % span - 110;
     puff(cx, 54 + i * 30, 26 + i * 6);
   });
+}
+
+function parseBannerLines(text) {
+  return (text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && !line.startsWith("<!--"))
+    .map((line) => line.replace(/^[-*]\s+/, "").replace(/^>\s+/, "").trim())
+    .filter(Boolean);
+}
+
+fetch("banners.md")
+  .then((r) => (r.ok ? r.text() : ""))
+  .then((text) => {
+    bannerLines = parseBannerLines(text);
+  })
+  .catch(() => {
+    bannerLines = [];
+  });
+
+function pickBannerText() {
+  const pool = bannerLines.filter((t) => t !== lastBannerText);
+  const list = pool.length ? pool : bannerLines;
+  if (!list.length) return "";
+  const text = list[Math.floor(Math.random() * list.length)];
+  lastBannerText = text;
+  return text;
+}
+
+function measureBannerW(text) {
+  ctx.font = "15px Jua, Malgun Gothic, sans-serif";
+  return Math.min(220, Math.max(72, Math.ceil(ctx.measureText(text).width) + 18));
+}
+
+function spawnSkyPlane() {
+  const text = pickBannerText();
+  if (!text) return;
+  skyPlane = {
+    startAt: playNow,
+    startX: -PLANE_W - 10,
+    y: 56 + Math.random() * 40,
+    text,
+    bw: measureBannerW(text),
+  };
+  lastPlaneAt = playNow;
+}
+
+function updateSkyPlane() {
+  if (skyPlane) {
+    if (playNow - skyPlane.startAt >= PLANE_FLIGHT_MS) skyPlane = null;
+  }
+  if (!skyPlane && playNow - lastPlaneAt >= PLANE_INTERVAL_MS) spawnSkyPlane();
+}
+
+function drawSkyPlane() {
+  if (!skyPlane) return;
+  const travel = canvas.width + PLANE_W + PLANE_TOW + skyPlane.bw + 48;
+  const t = Math.min(1, (playNow - skyPlane.startAt) / PLANE_FLIGHT_MS);
+  const x = skyPlane.startX + t * travel;
+  const y = skyPlane.y + Math.sin(playNow / 240) * 3;
+  const pw = PLANE_W;
+  const ph = PLANE_H;
+  const bw = skyPlane.bw;
+  const bh = PLANE_BANNER_H;
+  const bannerX = x - PLANE_TOW - bw;
+  const bannerY = y + 22;
+  const night = isNight;
+  const body = night ? "#8a3048" : "#d64545";
+  const cream = night ? "#efe4c8" : "#fff6e0";
+  const ski = night ? "#8a6a48" : "#c9a06a";
+  const windowC = night ? "#c8e8ff" : "#7ec8e8";
+  const bannerBg = night ? "rgba(32, 44, 72, 0.92)" : "rgba(255, 248, 230, 0.94)";
+  const bannerInk = night ? "#e8f3ff" : "#1a3a58";
+  const bannerEdge = night ? "#9eb4d8" : "#3a6a90";
+  const outline = night ? "rgba(20,24,40,0.55)" : "rgba(40,30,30,0.45)";
+
+  ctx.save();
+  ctx.strokeStyle = night ? "rgba(220,230,255,0.45)" : "rgba(40,60,90,0.45)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y + 28);
+  ctx.lineTo(bannerX + bw, bannerY + 5);
+  ctx.moveTo(x + 16, y + 40);
+  ctx.lineTo(bannerX + bw, bannerY + bh - 5);
+  ctx.stroke();
+
+  ctx.fillStyle = bannerBg;
+  ctx.strokeStyle = bannerEdge;
+  ctx.lineWidth = 2;
+  roundRect(bannerX, bannerY, bw, bh, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.save();
+  roundRect(bannerX + 2, bannerY + 1, bw - 4, bh - 2, 5);
+  ctx.clip();
+  ctx.fillStyle = bannerInk;
+  ctx.font = "15px Jua, Malgun Gothic, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(skyPlane.text, bannerX + bw / 2, bannerY + bh / 2 + 1);
+  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  const noseX = x + pw - 8;
+  const bodyY = y + 38;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+
+  ctx.fillStyle = ski;
+  roundRect(x + 22, y + ph - 10, 58, 7, 3);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 28, y + ph - 10);
+  ctx.lineTo(x + 32, bodyY + 10);
+  ctx.lineTo(x + 38, bodyY + 10);
+  ctx.lineTo(x + 36, y + ph - 10);
+  ctx.moveTo(x + 62, y + ph - 10);
+  ctx.lineTo(x + 66, bodyY + 10);
+  ctx.lineTo(x + 72, bodyY + 10);
+  ctx.lineTo(x + 70, y + ph - 10);
+  ctx.fill();
+
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(x + 18, bodyY + 4);
+  ctx.lineTo(x + 4, y + 8);
+  ctx.lineTo(x + 28, bodyY - 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = cream;
+  ctx.beginPath();
+  ctx.moveTo(x + 18, bodyY + 1);
+  ctx.lineTo(x + 10, y + 14);
+  ctx.lineTo(x + 26, bodyY - 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(x + 54, bodyY, 40, 16, -0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = cream;
+  ctx.beginPath();
+  ctx.ellipse(x + 50, bodyY + 4, 28, 9, -0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(x + 48, y + 18, 42, 9, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = cream;
+  ctx.beginPath();
+  ctx.ellipse(x + 48, y + 16, 30, 3.5, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = windowC;
+  ctx.beginPath();
+  ctx.ellipse(noseX - 18, bodyY - 4, 9, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  const spin = playNow / 40;
+  ctx.save();
+  ctx.translate(noseX + 4, bodyY);
+  ctx.strokeStyle = night ? "rgba(230,240,255,0.75)" : "rgba(40,50,70,0.55)";
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(Math.cos(spin) * 16, Math.sin(spin) * 5);
+  ctx.lineTo(Math.cos(spin + Math.PI) * 16, Math.sin(spin + Math.PI) * 5);
+  ctx.moveTo(Math.cos(spin + 1.15) * 13, Math.sin(spin + 1.15) * 4);
+  ctx.lineTo(Math.cos(spin + 1.15 + Math.PI) * 13, Math.sin(spin + 1.15 + Math.PI) * 4);
+  ctx.stroke();
+  ctx.fillStyle = "#f0d24a";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
 }
 
 function drawScenery(h, color) {
