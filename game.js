@@ -2071,8 +2071,6 @@ function drawBackground() {
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  drawSkyPlane();
-
   // 먼 산맥 (패럴랙스: 뒤 레이어는 느리게 흐름)
   drawFarMountains(t);
 
@@ -2094,6 +2092,8 @@ function drawBackground() {
   for (let x = -((frame * speed) % gap); x < canvas.width; x += gap) {
     ctx.fillRect(x, GROUND + 10, id === 5 ? 18 : 28, 5);
   }
+
+  drawSkyPlane();
 }
 
 // 부드러운 글로우가 있는 해/달. glowRGB 는 "r,g,b" 문자열.
@@ -2212,7 +2212,7 @@ function updateSkyPlane() {
   if (skyPlane) {
     if (playNow - skyPlane.startAt >= PLANE_FLIGHT_MS) skyPlane = null;
   }
-  if (!skyPlane && playNow - lastPlaneAt >= PLANE_INTERVAL_MS) spawnSkyPlane();
+  if (!skyPlane && playNow - lastPlaneAt >= (lastPlaneAt === 0 ? 2500 : PLANE_INTERVAL_MS)) spawnSkyPlane();
 }
 
 function drawSkyPlane() {
