@@ -504,6 +504,12 @@ let trail = [];
 let rewardTimer = 50;
 let popTexts = [];
 let isNight = localStorage.getItem("penguin-night") === "1";
+let playNow = 0;
+let playClockLast = 0;
+let stage5CycleAt = 0;
+let themeBanner = 0;
+let themeBannerText = "";
+const STAGE5_DAYNIGHT_MS = 60000;
 
 bestEl.textContent = best;
 
@@ -543,6 +549,11 @@ function resetGame() {
   hurtFlash = 0;
   trail = [];
   hitAnim = null;
+  playNow = 0;
+  playClockLast = performance.now();
+  stage5CycleAt = 0;
+  themeBanner = 0;
+  themeBannerText = "";
   speed = currentStage().baseSpeed;
   obstacles = [];
   fishes = [];
@@ -699,8 +710,16 @@ function applyTheme() {
   canvas.style.background = t.canvas;
 }
 
+function isUiOpen() {
+  return shopOpen || nickOpen || rankOpen || charOpen || rotateOpen;
+}
+
+function isPlayPaused() {
+  return isUiOpen() || document.hidden;
+}
+
 function jump() {
-  if (shopOpen || nickOpen || rankOpen || charOpen || hitAnim) return;
+  if (isUiOpen() || hitAnim) return;
   if (!nickname) {
     openNickScreen();
     return;
@@ -1062,11 +1081,12 @@ function hitBox(a, b, pad = 10) {
 }
 
 function update() {
-  if (!running) return;
+  if (!running || isPlayPaused()) return;
 
   const stage = currentStage();
   frame += 1;
   if (stageBanner > 0) stageBanner -= 1;
+  if (themeBanner > 0) themeBanner -= 1;
   if (invincible > 0) invincible -= 1;
   if (hurtFlash > 0) hurtFlash -= 1;
   if (mushroomTime > 0) {
@@ -1110,6 +1130,7 @@ function update() {
   distance += speed;
   score = Math.floor(distance / 8) + fishCount * 50 + runCoins * 10;
   checkStageUp();
+  maybeCycleDayNight();
 
   penguin.vy += GRAVITY;
   penguin.y += penguin.vy;
@@ -1255,9 +1276,30 @@ function checkStageUp() {
     makeHills();
     makeSnow();
     applyTheme();
+    if (currentStage().id === 5) stage5CycleAt = playNow;
     beep(700, 0.12);
     updateHud();
   }
+}
+
+function setNight(next, fromPlayer) {
+  if (isNight === next) return;
+  isNight = next;
+  localStorage.setItem("penguin-night", isNight ? "1" : "0");
+  applyTheme();
+  if (running && currentStage().id >= 5) stage5CycleAt = playNow;
+  if (!fromPlayer && running && currentStage().id >= 5) {
+    themeBanner = 90;
+    themeBannerText = isNight ? "밤이 되었어요" : "낮이 되었어요";
+    beep(480, 0.1);
+  }
+}
+
+function maybeCycleDayNight() {
+  if (!running || currentStage().id < 5) return;
+  if (!stage5CycleAt) stage5CycleAt = playNow;
+  if (playNow - stage5CycleAt < STAGE5_DAYNIGHT_MS) return;
+  setNight(!isNight, false);
 }
 
 function saveCoins() {
@@ -2718,7 +2760,7 @@ function drawEatEffect() {
 }
 
 function drawStageHud() {
-  if (!running && stageBanner <= 0) return;
+  if (!running && stageBanner <= 0 && themeBanner <= 0) return;
 
   const stage = currentStage();
   ctx.fillStyle = isNight ? "rgba(230,245,255,0.85)" : "rgba(20,50,80,0.55)";
@@ -2752,14 +2794,31 @@ function drawStageHud() {
     ctx.fillText(stage.name, canvas.width / 2, 234);
     ctx.textAlign = "left";
   }
+
+  if (themeBanner > 0 && running) {
+    const alpha = Math.min(1, themeBanner / 18);
+    ctx.fillStyle = `rgba(12, 36, 64, ${0.5 * alpha})`;
+    roundRect(canvas.width / 2 - 160, 86, 320, 52, 18);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.textAlign = "center";
+    ctx.font = "24px Jua, Malgun Gothic, sans-serif";
+    ctx.fillText(themeBannerText, canvas.width / 2, 120);
+    ctx.textAlign = "left";
+  }
 }
 
 function loop() {
-  if (running && !shopOpen && !rankOpen && !nickOpen && !charOpen && !rotateOpen) update();
-  else {
+  const now = performance.now();
+  if (running && !isPlayPaused()) {
+    const dt = Math.min(50, now - (playClockLast || now));
+    playNow += dt;
+    update();
+  } else {
     updateHitAnim();
     if (!running && !hitAnim) frame += 1;
   }
+  playClockLast = now;
   draw();
   requestAnimationFrame(loop);
 }
@@ -2819,9 +2878,7 @@ document.querySelectorAll(".shop-item").forEach((btn) => {
   btn.addEventListener("click", () => buyShopItem(btn.dataset.item));
 });
 nightBtn.addEventListener("click", () => {
-  isNight = !isNight;
-  localStorage.setItem("penguin-night", isNight ? "1" : "0");
-  applyTheme();
+  setNight(!isNight, true);
 });
 
 const musicBtn = document.getElementById("music-btn");
