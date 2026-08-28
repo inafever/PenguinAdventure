@@ -141,6 +141,35 @@ canvas {
   line-height: 1.5;
 }
 
+.result-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 18px;
+  text-align: center;
+}
+
+.result-stat {
+  padding: 8px 6px 10px;
+  border-radius: 12px;
+  background: rgba(30, 90, 130, 0.08);
+}
+
+.result-stat span {
+  display: block;
+  font-size: 0.8rem;
+  color: #2f7aa8;
+  line-height: 1.2;
+}
+
+.result-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.15rem;
+  color: #12324a;
+  line-height: 1.2;
+}
+
 button {
   border: 0;
   border-radius: 999px;
@@ -594,6 +623,18 @@ body.night .card {
 
 body.night .kicker {
   color: #8ec7ff;
+}
+
+body.night .result-stat {
+  background: rgba(180, 210, 255, 0.12);
+}
+
+body.night .result-stat span {
+  color: #8ec7ff;
+}
+
+body.night .result-stat strong {
+  color: #e8f3ff;
 }
 
 .hud {
