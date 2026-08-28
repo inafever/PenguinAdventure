@@ -6,7 +6,7 @@
 - `style.css` — 스타일
 - `game.js` — 게임 로직 전체 (vanilla JS, canvas 렌더링)
 - `banners.md` — 하늘 현수막 문구. 한 줄에 하나씩 적으면 게임 중 10초마다 북극곰 높이의 경비행기가 그중 하나를 달고 지나갑니다.
-- `assets/` — 캐릭터/장애물 PNG 스프라이트 (penguin, bear, wolf, hunter)
+- `assets/` — 캐릭터/장애물 PNG 스프라이트 (penguin, bear, wolf, hunter)와 하늘 경비행기 `sky-plane.png`
 - `assets/main-characters/` — 주인공 5종 프레임 애니메이션 (펭귄, 북극곰, 토끼, 여우, 물범)
 
 ## Cursor Cloud specific instructions

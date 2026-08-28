@@ -177,6 +177,9 @@ loadSprite("bear", "assets/bear.png");
 loadSprite("wolf", "assets/wolf.png");
 loadSprite("hunter", "assets/hunter.png");
 
+const skyPlaneImg = new Image();
+skyPlaneImg.src = "assets/sky-plane.png";
+
 // 주인공 5종. 파일은 assets/main-characters/{이름}_{walk|jump|slide}_{left|right}_{n}.png
 // 펭귄은 모든 프레임이 188×264라서 자르면 발위치가 흔들린다.
 const CHARACTERS = [
@@ -513,8 +516,7 @@ const STAGE5_DAYNIGHT_MS = 60000;
 const PLANE_INTERVAL_MS = 10000;
 const PLANE_FLIGHT_MS = 9000;
 const PLANE_H = 72;
-const PLANE_W = 108;
-const PLANE_TOW = 16;
+const PLANE_TOW = 18;
 const PLANE_BANNER_H = 24;
 let skyPlane = null;
 let lastPlaneAt = 0;
@@ -2190,6 +2192,14 @@ function pickBannerText() {
   return text;
 }
 
+function planeDrawSize() {
+  const iw = skyPlaneImg.naturalWidth || 399;
+  const ih = skyPlaneImg.naturalHeight || 160;
+  const ph = PLANE_H;
+  const pw = (iw / ih) * ph;
+  return { pw, ph };
+}
+
 function measureBannerW(text) {
   ctx.font = "15px Jua, Malgun Gothic, sans-serif";
   return Math.min(220, Math.max(72, Math.ceil(ctx.measureText(text).width) + 18));
@@ -2198,10 +2208,11 @@ function measureBannerW(text) {
 function spawnSkyPlane() {
   const text = pickBannerText();
   if (!text) return;
+  const { pw } = planeDrawSize();
   skyPlane = {
     startAt: playNow,
-    startX: -PLANE_W - 10,
-    y: 56 + Math.random() * 40,
+    startX: -pw - 12,
+    y: 48 + Math.random() * 28,
     text,
     bw: measureBannerW(text),
   };
@@ -2217,33 +2228,29 @@ function updateSkyPlane() {
 
 function drawSkyPlane() {
   if (!skyPlane) return;
-  const travel = canvas.width + PLANE_W + PLANE_TOW + skyPlane.bw + 48;
+  const { pw, ph } = planeDrawSize();
+  const travel = canvas.width + pw + PLANE_TOW + skyPlane.bw + 48;
   const t = Math.min(1, (playNow - skyPlane.startAt) / PLANE_FLIGHT_MS);
   const x = skyPlane.startX + t * travel;
   const y = skyPlane.y + Math.sin(playNow / 240) * 3;
-  const pw = PLANE_W;
-  const ph = PLANE_H;
   const bw = skyPlane.bw;
   const bh = PLANE_BANNER_H;
+  const tailX = x + pw * 0.08;
+  const tailY = y + ph * 0.42;
   const bannerX = x - PLANE_TOW - bw;
-  const bannerY = y + 22;
+  const bannerY = y + ph * 0.32;
   const night = isNight;
-  const body = night ? "#8a3048" : "#d64545";
-  const cream = night ? "#efe4c8" : "#fff6e0";
-  const ski = night ? "#8a6a48" : "#c9a06a";
-  const windowC = night ? "#c8e8ff" : "#7ec8e8";
   const bannerBg = night ? "rgba(32, 44, 72, 0.92)" : "rgba(255, 248, 230, 0.94)";
   const bannerInk = night ? "#e8f3ff" : "#1a3a58";
   const bannerEdge = night ? "#9eb4d8" : "#3a6a90";
-  const outline = night ? "rgba(20,24,40,0.55)" : "rgba(40,30,30,0.45)";
 
   ctx.save();
-  ctx.strokeStyle = night ? "rgba(220,230,255,0.45)" : "rgba(40,60,90,0.45)";
+  ctx.strokeStyle = night ? "rgba(220,230,255,0.5)" : "rgba(40,60,90,0.5)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(x + 14, y + 28);
+  ctx.moveTo(tailX, tailY);
   ctx.lineTo(bannerX + bw, bannerY + 5);
-  ctx.moveTo(x + 16, y + 40);
+  ctx.moveTo(tailX, tailY + 10);
   ctx.lineTo(bannerX + bw, bannerY + bh - 5);
   ctx.stroke();
 
@@ -2265,84 +2272,10 @@ function drawSkyPlane() {
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
-  const noseX = x + pw - 8;
-  const bodyY = y + 38;
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.5;
-
-  ctx.fillStyle = ski;
-  roundRect(x + 22, y + ph - 10, 58, 7, 3);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + 28, y + ph - 10);
-  ctx.lineTo(x + 32, bodyY + 10);
-  ctx.lineTo(x + 38, bodyY + 10);
-  ctx.lineTo(x + 36, y + ph - 10);
-  ctx.moveTo(x + 62, y + ph - 10);
-  ctx.lineTo(x + 66, bodyY + 10);
-  ctx.lineTo(x + 72, bodyY + 10);
-  ctx.lineTo(x + 70, y + ph - 10);
-  ctx.fill();
-
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  ctx.moveTo(x + 18, bodyY + 4);
-  ctx.lineTo(x + 4, y + 8);
-  ctx.lineTo(x + 28, bodyY - 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = cream;
-  ctx.beginPath();
-  ctx.moveTo(x + 18, bodyY + 1);
-  ctx.lineTo(x + 10, y + 14);
-  ctx.lineTo(x + 26, bodyY - 4);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  ctx.ellipse(x + 54, bodyY, 40, 16, -0.06, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = cream;
-  ctx.beginPath();
-  ctx.ellipse(x + 50, bodyY + 4, 28, 9, -0.06, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  ctx.ellipse(x + 48, y + 18, 42, 9, -0.08, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = cream;
-  ctx.beginPath();
-  ctx.ellipse(x + 48, y + 16, 30, 3.5, -0.08, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = windowC;
-  ctx.beginPath();
-  ctx.ellipse(noseX - 18, bodyY - 4, 9, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  const spin = playNow / 40;
-  ctx.save();
-  ctx.translate(noseX + 4, bodyY);
-  ctx.strokeStyle = night ? "rgba(230,240,255,0.75)" : "rgba(40,50,70,0.55)";
-  ctx.lineWidth = 2.2;
-  ctx.beginPath();
-  ctx.moveTo(Math.cos(spin) * 16, Math.sin(spin) * 5);
-  ctx.lineTo(Math.cos(spin + Math.PI) * 16, Math.sin(spin + Math.PI) * 5);
-  ctx.moveTo(Math.cos(spin + 1.15) * 13, Math.sin(spin + 1.15) * 4);
-  ctx.lineTo(Math.cos(spin + 1.15 + Math.PI) * 13, Math.sin(spin + 1.15 + Math.PI) * 4);
-  ctx.stroke();
-  ctx.fillStyle = "#f0d24a";
-  ctx.beginPath();
-  ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
+  if (skyPlaneImg.complete && skyPlaneImg.naturalWidth > 0) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(skyPlaneImg, x, y, pw, ph);
+  }
   ctx.restore();
 }
 
